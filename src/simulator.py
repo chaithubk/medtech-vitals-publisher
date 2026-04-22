@@ -108,7 +108,7 @@ class MQTTClient:
                 if self._connected:
                     return True
                 logger.warning("Connection not confirmed yet, retrying in %ds", backoff)
-            except Exception as exc:  # noqa: BLE001
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 logger.warning("MQTT connect error: %s – retrying in %ds", exc, backoff)
             time.sleep(backoff)
             backoff = min(backoff * 2, max_backoff)

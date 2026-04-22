@@ -138,7 +138,7 @@ def test_mqtt_publish():
     mock_mqtt.publish.return_value = True
     sim.mqtt_client = mock_mqtt
 
-    def _stop_after_one(seconds):  # noqa: ANN001
+    def _stop_after_one(_):  # noqa: ANN001  # noqa: ANN001
         sim._running = False
 
     with patch("src.simulator.time.sleep", side_effect=_stop_after_one):
@@ -173,7 +173,7 @@ def test_mqtt_reconnect():
     mock_mqtt.publish.return_value = True
     sim.mqtt_client = mock_mqtt
 
-    def _stop_after_one(seconds):  # noqa: ANN001
+    def _stop_after_one(_):  # noqa: ANN001  # noqa: ANN001
         sim._running = False
 
     with patch("src.simulator.time.sleep", side_effect=_stop_after_one):
@@ -273,7 +273,7 @@ class TestMQTTClient:
         """connect() returns True when the broker accepts the connection."""
         client = self._make_client()
 
-        def _set_connected(seconds):
+        def _set_connected(_):
             client._connected = True
 
         with patch("src.simulator.time.sleep", side_effect=_set_connected):
@@ -302,7 +302,7 @@ class TestMQTTClient:
 
         sleep_count = [0]
 
-        def _sleep(seconds):
+        def _sleep(_):
             sleep_count[0] += 1
             if sleep_count[0] >= 2:
                 client._connected = True
@@ -355,7 +355,7 @@ def test_run_failed_publish_logs_warning():
     mock_mqtt.publish.return_value = False  # simulate publish failure
     sim.mqtt_client = mock_mqtt
 
-    def _stop(seconds):
+    def _stop(_):
         sim._running = False
 
     with patch("src.simulator.time.sleep", side_effect=_stop):
@@ -374,7 +374,7 @@ def test_run_logs_every_100th_publish():
     mock_mqtt.publish.return_value = True
     sim.mqtt_client = mock_mqtt
 
-    def _stop(seconds):
+    def _stop(_):
         sim._running = False
 
     with patch("src.simulator.time.sleep", side_effect=_stop):

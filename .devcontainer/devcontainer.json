@@ -1,6 +1,7 @@
 {
   "name": "Vitals Publisher (Python 3.11)",
-  "image": "python:3.11-bookworm",
+  "dockerFile": "Dockerfile",
+  "context": ".",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -15,7 +16,6 @@
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.linting.enabled": true,
-        "python.linting.pylintEnabled": true,
         "python.formatting.provider": "black",
         "[python]": {
           "editor.formatOnSave": true,
@@ -24,7 +24,7 @@
       }
     }
   },
-  "postCreateCommand": "pip install -r requirements.txt && pip install pytest pytest-cov black flake8 mypy pylint isort",
+  "postCreateCommand": "pip install -r requirements.txt && pip install pytest pytest-cov black flake8 mypy pylint isort pytest-mock",
   "forwardPorts": [1883],
   "portsAttributes": {
     "1883": {
@@ -32,5 +32,9 @@
       "onAutoForward": "notify"
     }
   },
-  "remoteUser": "root"
+  "remoteUser": "root",
+  "remoteEnv": {
+    "HISTSIZE": "10000",
+    "HISTFILESIZE": "100000"
+  }
 }

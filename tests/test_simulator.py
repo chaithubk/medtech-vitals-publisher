@@ -145,7 +145,7 @@ def test_timestamp_reasonable():
 
 def test_invalid_scenario_raises_error():
     """VitalsSimulator raises ValueError when constructed with an unknown scenario."""
-    with pytest.raises(ValueError, match="Invalid scenario"):
+    with pytest.raises(ValueError, match="Invalid scenario 'unknown_scenario'"):
         VitalsSimulator(scenario="unknown_scenario")
 
 

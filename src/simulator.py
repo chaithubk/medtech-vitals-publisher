@@ -149,9 +149,6 @@ class MQTTClient:
                         )
                         return True
                     time.sleep(connect_wait_interval)
-                if self._connected:
-                    self._client.publish(config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True)
-                    return True
                 logger.warning(
                     "Connection not confirmed within %.1fs, retrying in %ds",
                     connect_wait_timeout,

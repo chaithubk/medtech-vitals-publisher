@@ -5,9 +5,29 @@ All runtime-tunable values are read from environment variables with sensible def
 
 import os
 
+
+def _get_int_env(name: str, default: int) -> int:
+    """Parse an integer environment variable with a safe fallback.
+
+    Args:
+        name: Environment variable name.
+        default: Value to use when the variable is absent or non-numeric.
+
+    Returns:
+        Parsed integer value, or *default* when the variable is unset or invalid.
+    """
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 # MQTT connection settings
 MQTT_BROKER: str = os.environ.get("MQTT_BROKER", "localhost")
-MQTT_PORT: int = int(os.environ.get("MQTT_PORT", "1883"))
+MQTT_PORT: int = _get_int_env("MQTT_PORT", 1883)
 MQTT_TOPIC: str = "medtech/vitals/latest"
 MQTT_STATUS_TOPIC: str = "medtech/vitals/status"
 MQTT_QOS: int = 1

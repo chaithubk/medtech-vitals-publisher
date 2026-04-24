@@ -8,6 +8,8 @@ import logging
 import time
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src import config
 from src.simulator import ScenarioFactory, VitalsSimulator
 
@@ -42,18 +44,10 @@ def test_scenario_healthy_ranges():
     for _ in range(20):
         v = ScenarioFactory.healthy()
         assert _in_range(v["hr"], *cfg["hr"]), f"hr={v['hr']} out of {cfg['hr']}"
-        assert _in_range(
-            v["bp_sys"], *cfg["bp_sys"]
-        ), f"bp_sys={v['bp_sys']} out of {cfg['bp_sys']}"
-        assert _in_range(
-            v["bp_dia"], *cfg["bp_dia"]
-        ), f"bp_dia={v['bp_dia']} out of {cfg['bp_dia']}"
-        assert _in_range(
-            v["o2_sat"], *cfg["o2_sat"]
-        ), f"o2_sat={v['o2_sat']} out of {cfg['o2_sat']}"
-        assert _in_range(
-            v["temperature"], *cfg["temp"]
-        ), f"temperature={v['temperature']} out of {cfg['temp']}"
+        assert _in_range(v["bp_sys"], *cfg["bp_sys"]), f"bp_sys={v['bp_sys']} out of {cfg['bp_sys']}"
+        assert _in_range(v["bp_dia"], *cfg["bp_dia"]), f"bp_dia={v['bp_dia']} out of {cfg['bp_dia']}"
+        assert _in_range(v["o2_sat"], *cfg["o2_sat"]), f"o2_sat={v['o2_sat']} out of {cfg['o2_sat']}"
+        assert _in_range(v["temperature"], *cfg["temp"]), f"temperature={v['temperature']} out of {cfg['temp']}"
         assert v["quality"] == cfg["quality"]
 
 
@@ -103,9 +97,7 @@ def test_determinism():
 
     # Different seeds must produce different results (with overwhelming probability)
     v_other = ScenarioFactory.healthy(seed=seed + 1)
-    assert (
-        v1_healthy["hr"] != v_other["hr"] or v1_healthy["bp_sys"] != v_other["bp_sys"]
-    )
+    assert v1_healthy["hr"] != v_other["hr"] or v1_healthy["bp_sys"] != v_other["bp_sys"]
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +139,17 @@ def test_timestamp_reasonable():
 
 
 # ---------------------------------------------------------------------------
+# Scenario validation
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_scenario_raises_error():
+    """VitalsSimulator raises ValueError when constructed with an unknown scenario."""
+    with pytest.raises(ValueError, match="Invalid scenario"):
+        VitalsSimulator(scenario="unknown_scenario")
+
+
+# ---------------------------------------------------------------------------
 # MQTT publish (mocked)
 # ---------------------------------------------------------------------------
 
@@ -161,7 +164,7 @@ def test_mqtt_publish():
     mock_mqtt.publish.return_value = True
     sim.mqtt_client = mock_mqtt
 
-    def _stop_after_one(_):  # noqa: ANN001  # noqa: ANN001
+    def _stop_after_one(_):  # noqa: ANN001
         sim._running = False
 
     with patch("src.simulator.time.sleep", side_effect=_stop_after_one):
@@ -176,9 +179,7 @@ def test_mqtt_publish():
     assert topic == config.MQTT_TOPIC, f"Unexpected topic: {topic}"
 
     payload = json.loads(payload_str)
-    assert (
-        _REQUIRED_FIELDS <= payload.keys()
-    ), f"Missing fields: {_REQUIRED_FIELDS - payload.keys()}"
+    assert _REQUIRED_FIELDS <= payload.keys(), f"Missing fields: {_REQUIRED_FIELDS - payload.keys()}"
     assert payload["source"] == "simulator"
 
 
@@ -198,7 +199,7 @@ def test_mqtt_reconnect():
     mock_mqtt.publish.return_value = True
     sim.mqtt_client = mock_mqtt
 
-    def _stop_after_one(_):  # noqa: ANN001  # noqa: ANN001
+    def _stop_after_one(_):  # noqa: ANN001
         sim._running = False
 
     with patch("src.simulator.time.sleep", side_effect=_stop_after_one):
@@ -206,9 +207,7 @@ def test_mqtt_reconnect():
 
     # connect() must have been called at least twice:
     # once for the initial connect in run() and once inside the loop
-    assert (
-        mock_mqtt.connect.call_count >= 2
-    ), f"Expected >= 2 connect() calls, got {mock_mqtt.connect.call_count}"
+    assert mock_mqtt.connect.call_count >= 2, f"Expected >= 2 connect() calls, got {mock_mqtt.connect.call_count}"
 
 
 # ---------------------------------------------------------------------------
@@ -288,13 +287,24 @@ class TestMQTTClient:
         assert client.publish("t", "p") is False
 
     def test_disconnect(self):
-        """disconnect() calls paho disconnect/loop_stop and marks as not connected."""
+        """disconnect() calls paho disconnect() and marks as not connected; loop not stopped when never started."""
         client = self._make_client()
         client._connected = True
         client.disconnect()
         assert client.is_connected() is False
         client._client.disconnect.assert_called_once()
+        # loop was never started, so loop_stop must NOT be called
+        client._client.loop_stop.assert_not_called()
+
+    def test_disconnect_stops_loop_when_started(self):
+        """disconnect() calls loop_stop() when the network loop was previously started."""
+        client = self._make_client()
+        client._connected = True
+        client._loop_started = True  # simulate state after connect()
+        client.disconnect()
+        assert client.is_connected() is False
         client._client.loop_stop.assert_called_once()
+        assert client._loop_started is False
 
     def test_connect_succeeds_first_try(self):
         """connect() returns True when the broker accepts the connection."""
@@ -375,9 +385,7 @@ def test_last_will_configured():
 
         MQTTClient("localhost", 1883)
 
-    mock_instance.will_set.assert_called_once_with(
-        config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
-    )
+    mock_instance.will_set.assert_called_once_with(config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True)
 
 
 def test_online_status_published_on_connect():
@@ -396,9 +404,7 @@ def test_online_status_published_on_connect():
     with patch("src.simulator.time.sleep", side_effect=_set_connected):
         client.connect()
 
-    mock_instance.publish.assert_called_with(
-        config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True
-    )
+    mock_instance.publish.assert_called_with(config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True)
 
 
 def test_publish_status_when_connected():
@@ -414,9 +420,7 @@ def test_publish_status_when_connected():
     client._connected = True
     client.publish_status("offline")
 
-    mock_instance.publish.assert_called_with(
-        config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
-    )
+    mock_instance.publish.assert_called_with(config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True)
 
 
 def test_publish_status_when_not_connected():
@@ -522,9 +526,7 @@ def test_main_default_scenario():
             main()
 
         call_kwargs = mock_cls.call_args
-        scenario_used = (
-            call_kwargs[1].get("scenario") if call_kwargs[1] else call_kwargs[0][0]
-        )
+        scenario_used = call_kwargs[1].get("scenario") if call_kwargs[1] else call_kwargs[0][0]
         assert scenario_used == "healthy"
 
 

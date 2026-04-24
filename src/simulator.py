@@ -43,9 +43,7 @@ class MQTTClient:
         client_id: Optional client identifier; auto-generated when omitted.
     """
 
-    def __init__(
-        self, broker_host: str, broker_port: int, client_id: Optional[str] = None
-    ) -> None:
+    def __init__(self, broker_host: str, broker_port: int, client_id: Optional[str] = None) -> None:
         """Initialise the MQTT client.
 
         Args:
@@ -57,14 +55,14 @@ class MQTTClient:
         self._broker_port = broker_port
         self._client_id = client_id or f"vitals-publisher-{int(time.time())}"
         self._connected = False
+        self._loop_started = False
         self._client = mqtt.Client(client_id=self._client_id)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         # Last Will: broker publishes "offline" if the client disconnects unexpectedly
-        self._client.will_set(
-            config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
-        )
-        self._client.loop_start()
+        self._client.will_set(config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True)
+        # loop_start() is intentionally deferred to connect() to avoid spawning
+        # background threads for objects that may never actually connect.
 
     # ------------------------------------------------------------------
     # Callbacks
@@ -81,9 +79,7 @@ class MQTTClient:
         """
         if rc == 0:
             self._connected = True
-            logger.info(
-                "Connected to MQTT broker %s:%d", self._broker_host, self._broker_port
-            )
+            logger.info("Connected to MQTT broker %s:%d", self._broker_host, self._broker_port)
         else:
             self._connected = False
             logger.warning("MQTT connection refused, rc=%d", rc)
@@ -103,33 +99,67 @@ class MQTTClient:
             logger.info("MQTT broker disconnected cleanly")
 
     # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _stop_loop(self) -> None:
+        """Stop the paho network loop if it has been started."""
+        if self._loop_started:
+            self._client.loop_stop()
+            self._loop_started = False
+
+    def __del__(self) -> None:
+        """Best-effort cleanup – stop the background network loop on GC."""
+        try:
+            self._stop_loop()
+        except Exception:  # noqa: BLE001
+            pass
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def connect(self) -> bool:
         """Connect to the MQTT broker with exponential-backoff retries.
 
+        The paho network loop is started on the first call so that the
+        on_connect callback can fire.  Subsequent calls reuse the running loop.
+
         Returns:
             True once the connection is established.
         """
         backoff = 1
         max_backoff = 60
+        connect_wait_timeout = 5.0
+        connect_wait_interval = 0.1
+        if not self._loop_started:
+            self._client.loop_start()
+            self._loop_started = True
         while True:
             try:
                 self._client.connect(self._broker_host, self._broker_port)
-                time.sleep(0.5)  # give on_connect callback time to fire
+                deadline = time.monotonic() + connect_wait_timeout
+                while time.monotonic() < deadline:
+                    if self._connected:
+                        self._client.publish(
+                            config.MQTT_STATUS_TOPIC,
+                            payload="online",
+                            qos=1,
+                            retain=True,
+                        )
+                        return True
+                    time.sleep(connect_wait_interval)
                 if self._connected:
-                    self._client.publish(
-                        config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True
-                    )
+                    self._client.publish(config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True)
                     return True
-                logger.warning("Connection not confirmed yet, retrying in %ds", backoff)
+                logger.warning(
+                    "Connection not confirmed within %.1fs, retrying in %ds",
+                    connect_wait_timeout,
+                    backoff,
+                )
             except (OSError, ConnectionError, TimeoutError) as exc:
                 logger.warning("MQTT connect error: %s – retrying in %ds", exc, backoff)
-                if (
-                    self._broker_host in {"localhost", "127.0.0.1"}
-                    and _running_in_container()
-                ):
+                if self._broker_host in {"localhost", "127.0.0.1"} and _running_in_container():
                     logger.warning(
                         "Container detected and broker is %s. If your broker runs on the host machine, "
                         "set MQTT_BROKER=host.docker.internal (or pass --broker-host).",
@@ -165,16 +195,16 @@ class MQTTClient:
             status: Status string, typically 'online' or 'offline'.
         """
         if self._connected:
-            self._client.publish(
-                config.MQTT_STATUS_TOPIC, payload=status, qos=1, retain=True
-            )
+            self._client.publish(config.MQTT_STATUS_TOPIC, payload=status, qos=1, retain=True)
             logger.info("Published status: %s", status)
 
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker and stop the network loop."""
-        self._client.disconnect()
-        self._client.loop_stop()
-        self._connected = False
+        try:
+            self._client.disconnect()
+        finally:
+            self._stop_loop()
+            self._connected = False
         logger.info("MQTT client disconnected")
 
     def is_connected(self) -> bool:
@@ -214,19 +244,16 @@ class ScenarioFactory:
         temperature = round(rng.uniform(*cfg["temp"]), 1)
         quality: int = cfg["quality"]
 
-        assert cfg["hr"][0] <= hr <= cfg["hr"][1], f"hr {hr} out of range {cfg['hr']}"
-        assert (
-            cfg["bp_sys"][0] <= bp_sys <= cfg["bp_sys"][1]
-        ), f"bp_sys {bp_sys} out of range {cfg['bp_sys']}"
-        assert (
-            cfg["bp_dia"][0] <= bp_dia <= cfg["bp_dia"][1]
-        ), f"bp_dia {bp_dia} out of range {cfg['bp_dia']}"
-        assert (
-            cfg["o2_sat"][0] <= o2_sat <= cfg["o2_sat"][1]
-        ), f"o2_sat {o2_sat} out of range {cfg['o2_sat']}"
-        assert (
-            cfg["temp"][0] <= temperature <= cfg["temp"][1]
-        ), f"temperature {temperature} out of range {cfg['temp']}"
+        if not cfg["hr"][0] <= hr <= cfg["hr"][1]:
+            raise ValueError(f"hr {hr} out of range {cfg['hr']}")
+        if not cfg["bp_sys"][0] <= bp_sys <= cfg["bp_sys"][1]:
+            raise ValueError(f"bp_sys {bp_sys} out of range {cfg['bp_sys']}")
+        if not cfg["bp_dia"][0] <= bp_dia <= cfg["bp_dia"][1]:
+            raise ValueError(f"bp_dia {bp_dia} out of range {cfg['bp_dia']}")
+        if not cfg["o2_sat"][0] <= o2_sat <= cfg["o2_sat"][1]:
+            raise ValueError(f"o2_sat {o2_sat} out of range {cfg['o2_sat']}")
+        if not cfg["temp"][0] <= temperature <= cfg["temp"][1]:
+            raise ValueError(f"temperature {temperature} out of range {cfg['temp']}")
 
         return {
             "timestamp": int(time.time() * 1000),
@@ -306,6 +333,9 @@ class VitalsSimulator:
             broker_port: MQTT broker TCP port.
             seed: Random seed for deterministic vital generation.
         """
+        if scenario not in config.SCENARIOS:
+            valid = ", ".join(config.SCENARIOS.keys())
+            raise ValueError(f"Invalid scenario '{scenario}'. Expected one of: {valid}")
         self.scenario = scenario
         self.seed = seed
         self.config = config
@@ -313,9 +343,7 @@ class VitalsSimulator:
         self._publish_count = 0
         self._connect_count = 0
         self._rng = random.Random(seed)
-        self.mqtt_client: MQTTClient = MQTTClient(
-            broker_host=broker_host, broker_port=broker_port
-        )
+        self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
         logger.info(
             "VitalsSimulator initialised: scenario=%s, broker=%s:%d, seed=%d",
             scenario,
@@ -361,25 +389,19 @@ class VitalsSimulator:
 
             vital = self._generate_vital()
             payload = json.dumps(vital)
-            success = self.mqtt_client.publish(
-                config.MQTT_TOPIC, payload, qos=config.MQTT_QOS
-            )
+            success = self.mqtt_client.publish(config.MQTT_TOPIC, payload, qos=config.MQTT_QOS)
             if success:
                 self._publish_count += 1
                 if self._publish_count % 100 == 0:
                     logger.info("Published %d vitals so far", self._publish_count)
             else:
-                logger.warning(
-                    "Failed to publish vital reading #%d", self._publish_count + 1
-                )
+                logger.warning("Failed to publish vital reading #%d", self._publish_count + 1)
 
             time.sleep(config.PUBLISH_INTERVAL_S)
 
     def shutdown(self) -> None:
         """Gracefully stop the event loop and close the MQTT connection."""
-        logger.info(
-            "VitalsSimulator shutting down after %d publishes", self._publish_count
-        )
+        logger.info("VitalsSimulator shutting down after %d publishes", self._publish_count)
         self._running = False
         self.mqtt_client.publish_status("offline")
         self.mqtt_client.disconnect()

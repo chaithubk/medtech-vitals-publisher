@@ -30,6 +30,79 @@ What happens automatically on container start:
 - Both ports are forwarded to your host by VS Code so you can reach them on
   `localhost` from Windows/macOS.
 
+## Clean Setup Checklist
+
+Use this flow when opening the repo in a fresh dev container.
+
+### 1. Prepare Git authentication in WSL
+
+The container should use your WSL `ssh-agent`. Your private keys stay in WSL;
+the container only uses the forwarded agent for signing SSH requests.
+
+In WSL, make sure an agent is running and your key is loaded:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519_xyz
+ssh-add -l
+```
+
+If you use multiple GitHub accounts on the host, that is fine. Keep your alias
+setup in WSL if you need it there, but the dev container should not depend on a
+host-specific SSH alias.
+
+### 2. Use a canonical Git remote in the container
+
+Inside the container, prefer the standard GitHub remote format:
+
+```bash
+git remote set-url origin <git-ssh-url>
+```
+
+Do not rely on WSL-only SSH host aliases such as `github-accountA` unless you
+also copy the matching SSH config into the container. In this repo that extra
+alias is unnecessary.
+
+### 3. Reopen or rebuild the dev container
+
+After your WSL agent is ready, reopen the folder in the container or rebuild the
+container so VS Code can forward the SSH agent into the container session.
+
+### 4. Verify Git auth inside the container
+
+Run these checks in the container:
+
+```bash
+echo "$SSH_AUTH_SOCK"
+ssh-add -l
+ssh -T git@github.com
+```
+
+Expected result:
+- `SSH_AUTH_SOCK` is set.
+- `ssh-add -l` lists your key.
+- `ssh -T git@github.com` confirms GitHub authentication.
+
+### 5. Verify the local broker and app
+
+Once the container is up, confirm the development services and tests:
+
+```bash
+python -m pytest -q
+python -m src.simulator --scenario healthy
+```
+
+### Notes for multiple GitHub accounts
+
+- Multiple keys on the host are fine as long as the correct key is loaded in the
+  WSL agent before the container starts.
+- If you need tighter control, load only the account-specific key you want to
+  use before opening the container.
+- If your host uses SSH aliases to choose between accounts, that host-side alias
+  does not automatically exist inside the container.
+- The simplest container setup is to use `git@github.com:owner/repo.git` and let
+  the forwarded agent provide the right key.
+
 ## Running the Simulator
 
 ```bash

@@ -127,7 +127,11 @@ Environment variables override defaults without changing code:
 
 **From inside the container** — subscribe with `mosquitto_sub`:
 ```bash
+# Vitals payload
 mosquitto_sub -h localhost -p 1883 -t medtech/vitals/latest -v
+
+# Publisher online/offline status
+mosquitto_sub -h localhost -p 1883 -t medtech/vitals/status -v
 ```
 
 **From a browser on Windows/macOS** — use the HiveMQ WebSocket client:
@@ -135,7 +139,7 @@ mosquitto_sub -h localhost -p 1883 -t medtech/vitals/latest -v
    browsers block unencrypted WebSocket connections from HTTPS pages).
 2. Set Host: `localhost`, Port: `9001`, Path: `/`.
 3. Click **Connect** — status turns green.
-4. Subscribe to topic `medtech/vitals/latest`.
+3. Subscribe to topic `medtech/vitals/latest` for vitals or `medtech/vitals/status` for online/offline state.
 5. Run the simulator; messages appear in real time.
 
 **Desktop GUI** — [MQTT Explorer](https://mqtt-explorer.com/) connects directly

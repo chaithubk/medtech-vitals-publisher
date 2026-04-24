@@ -9,6 +9,7 @@ import os
 MQTT_BROKER: str = os.environ.get("MQTT_BROKER", "localhost")
 MQTT_PORT: int = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_TOPIC: str = "medtech/vitals/latest"
+MQTT_STATUS_TOPIC: str = "medtech/vitals/status"
 MQTT_QOS: int = 1
 
 # Publishing cadence

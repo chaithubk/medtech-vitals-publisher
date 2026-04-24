@@ -15,7 +15,16 @@ from src.simulator import ScenarioFactory, VitalsSimulator
 # Helper
 # ---------------------------------------------------------------------------
 
-_REQUIRED_FIELDS = {"timestamp", "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "quality", "source"}
+_REQUIRED_FIELDS = {
+    "timestamp",
+    "hr",
+    "bp_sys",
+    "bp_dia",
+    "o2_sat",
+    "temperature",
+    "quality",
+    "source",
+}
 
 
 def _in_range(value: float, lo: float, hi: float) -> bool:
@@ -33,10 +42,18 @@ def test_scenario_healthy_ranges():
     for _ in range(20):
         v = ScenarioFactory.healthy()
         assert _in_range(v["hr"], *cfg["hr"]), f"hr={v['hr']} out of {cfg['hr']}"
-        assert _in_range(v["bp_sys"], *cfg["bp_sys"]), f"bp_sys={v['bp_sys']} out of {cfg['bp_sys']}"
-        assert _in_range(v["bp_dia"], *cfg["bp_dia"]), f"bp_dia={v['bp_dia']} out of {cfg['bp_dia']}"
-        assert _in_range(v["o2_sat"], *cfg["o2_sat"]), f"o2_sat={v['o2_sat']} out of {cfg['o2_sat']}"
-        assert _in_range(v["temperature"], *cfg["temp"]), f"temperature={v['temperature']} out of {cfg['temp']}"
+        assert _in_range(
+            v["bp_sys"], *cfg["bp_sys"]
+        ), f"bp_sys={v['bp_sys']} out of {cfg['bp_sys']}"
+        assert _in_range(
+            v["bp_dia"], *cfg["bp_dia"]
+        ), f"bp_dia={v['bp_dia']} out of {cfg['bp_dia']}"
+        assert _in_range(
+            v["o2_sat"], *cfg["o2_sat"]
+        ), f"o2_sat={v['o2_sat']} out of {cfg['o2_sat']}"
+        assert _in_range(
+            v["temperature"], *cfg["temp"]
+        ), f"temperature={v['temperature']} out of {cfg['temp']}"
         assert v["quality"] == cfg["quality"]
 
 
@@ -86,7 +103,9 @@ def test_determinism():
 
     # Different seeds must produce different results (with overwhelming probability)
     v_other = ScenarioFactory.healthy(seed=seed + 1)
-    assert v1_healthy["hr"] != v_other["hr"] or v1_healthy["bp_sys"] != v_other["bp_sys"]
+    assert (
+        v1_healthy["hr"] != v_other["hr"] or v1_healthy["bp_sys"] != v_other["bp_sys"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +115,11 @@ def test_determinism():
 
 def test_json_schema():
     """Generated vital dict contains all required JSON schema fields."""
-    for factory_fn in (ScenarioFactory.healthy, ScenarioFactory.sepsis, ScenarioFactory.critical):
+    for factory_fn in (
+        ScenarioFactory.healthy,
+        ScenarioFactory.sepsis,
+        ScenarioFactory.critical,
+    ):
         vital = factory_fn(seed=42)
         missing = _REQUIRED_FIELDS - vital.keys()
         assert not missing, f"Missing fields: {missing}"
@@ -153,7 +176,9 @@ def test_mqtt_publish():
     assert topic == config.MQTT_TOPIC, f"Unexpected topic: {topic}"
 
     payload = json.loads(payload_str)
-    assert _REQUIRED_FIELDS <= payload.keys(), f"Missing fields: {_REQUIRED_FIELDS - payload.keys()}"
+    assert (
+        _REQUIRED_FIELDS <= payload.keys()
+    ), f"Missing fields: {_REQUIRED_FIELDS - payload.keys()}"
     assert payload["source"] == "simulator"
 
 
@@ -181,7 +206,9 @@ def test_mqtt_reconnect():
 
     # connect() must have been called at least twice:
     # once for the initial connect in run() and once inside the loop
-    assert mock_mqtt.connect.call_count >= 2, f"Expected >= 2 connect() calls, got {mock_mqtt.connect.call_count}"
+    assert (
+        mock_mqtt.connect.call_count >= 2
+    ), f"Expected >= 2 connect() calls, got {mock_mqtt.connect.call_count}"
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +349,7 @@ class TestMQTTClient:
 
 
 def test_simulator_shutdown():
-    """shutdown() sets _running=False and calls mqtt_client.disconnect()."""
+    """shutdown() publishes offline status then disconnects."""
     sim = VitalsSimulator(scenario="healthy", seed=42)
     mock_mqtt = MagicMock()
     sim.mqtt_client = mock_mqtt
@@ -330,7 +357,82 @@ def test_simulator_shutdown():
     sim.shutdown()
 
     assert sim._running is False
+    mock_mqtt.publish_status.assert_called_once_with("offline")
     mock_mqtt.disconnect.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Status topic – Last Will, online/offline
+# ---------------------------------------------------------------------------
+
+
+def test_last_will_configured():
+    """MQTTClient configures a Last Will on the status topic at construction."""
+    with patch("src.simulator.mqtt.Client") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        from src.simulator import MQTTClient
+
+        MQTTClient("localhost", 1883)
+
+    mock_instance.will_set.assert_called_once_with(
+        config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
+    )
+
+
+def test_online_status_published_on_connect():
+    """MQTTClient.connect() publishes 'online' to the status topic after connecting."""
+    with patch("src.simulator.mqtt.Client") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        from src.simulator import MQTTClient
+
+        client = MQTTClient("localhost", 1883)
+        client._client = mock_instance
+
+    def _set_connected(_):
+        client._connected = True
+
+    with patch("src.simulator.time.sleep", side_effect=_set_connected):
+        client.connect()
+
+    mock_instance.publish.assert_called_with(
+        config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True
+    )
+
+
+def test_publish_status_when_connected():
+    """publish_status() calls paho publish when connected."""
+    with patch("src.simulator.mqtt.Client") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        from src.simulator import MQTTClient
+
+        client = MQTTClient("localhost", 1883)
+        client._client = mock_instance
+
+    client._connected = True
+    client.publish_status("offline")
+
+    mock_instance.publish.assert_called_with(
+        config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
+    )
+
+
+def test_publish_status_when_not_connected():
+    """publish_status() is a no-op when not connected."""
+    with patch("src.simulator.mqtt.Client") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        from src.simulator import MQTTClient
+
+        client = MQTTClient("localhost", 1883)
+        client._client = mock_instance
+
+    client._connected = False
+    client.publish_status("offline")
+
+    mock_instance.publish.assert_not_called()
 
 
 def test_simulator_connect_logs_every_10th():
@@ -420,7 +522,9 @@ def test_main_default_scenario():
             main()
 
         call_kwargs = mock_cls.call_args
-        scenario_used = call_kwargs[1].get("scenario") if call_kwargs[1] else call_kwargs[0][0]
+        scenario_used = (
+            call_kwargs[1].get("scenario") if call_kwargs[1] else call_kwargs[0][0]
+        )
         assert scenario_used == "healthy"
 
 

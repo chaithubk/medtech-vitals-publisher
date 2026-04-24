@@ -60,6 +60,10 @@ class MQTTClient:
         self._client = mqtt.Client(client_id=self._client_id)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
+        # Last Will: broker publishes "offline" if the client disconnects unexpectedly
+        self._client.will_set(
+            config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
+        )
         self._client.loop_start()
 
     # ------------------------------------------------------------------
@@ -115,6 +119,9 @@ class MQTTClient:
                 self._client.connect(self._broker_host, self._broker_port)
                 time.sleep(0.5)  # give on_connect callback time to fire
                 if self._connected:
+                    self._client.publish(
+                        config.MQTT_STATUS_TOPIC, payload="online", qos=1, retain=True
+                    )
                     return True
                 logger.warning("Connection not confirmed yet, retrying in %ds", backoff)
             except (OSError, ConnectionError, TimeoutError) as exc:
@@ -150,6 +157,18 @@ class MQTTClient:
             logger.warning("Publish failed, rc=%d", result.rc)
             return False
         return True
+
+    def publish_status(self, status: str) -> None:
+        """Publish a retained status message to the status topic.
+
+        Args:
+            status: Status string, typically 'online' or 'offline'.
+        """
+        if self._connected:
+            self._client.publish(
+                config.MQTT_STATUS_TOPIC, payload=status, qos=1, retain=True
+            )
+            logger.info("Published status: %s", status)
 
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker and stop the network loop."""
@@ -362,6 +381,7 @@ class VitalsSimulator:
             "VitalsSimulator shutting down after %d publishes", self._publish_count
         )
         self._running = False
+        self.mqtt_client.publish_status("offline")
         self.mqtt_client.disconnect()
 
 

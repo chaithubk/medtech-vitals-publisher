@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 _LOG_FORMAT = "[%(asctime)s] [%(levelname)s] %(message)s"
 
 
+def _running_in_container() -> bool:
+    """Best-effort check for containerized runtime."""
+    return os.path.exists("/.dockerenv")
+
+
 # ---------------------------------------------------------------------------
 # MQTTClient
 # ---------------------------------------------------------------------------
@@ -38,7 +43,9 @@ class MQTTClient:
         client_id: Optional client identifier; auto-generated when omitted.
     """
 
-    def __init__(self, broker_host: str, broker_port: int, client_id: Optional[str] = None) -> None:
+    def __init__(
+        self, broker_host: str, broker_port: int, client_id: Optional[str] = None
+    ) -> None:
         """Initialise the MQTT client.
 
         Args:
@@ -70,7 +77,9 @@ class MQTTClient:
         """
         if rc == 0:
             self._connected = True
-            logger.info("Connected to MQTT broker %s:%d", self._broker_host, self._broker_port)
+            logger.info(
+                "Connected to MQTT broker %s:%d", self._broker_host, self._broker_port
+            )
         else:
             self._connected = False
             logger.warning("MQTT connection refused, rc=%d", rc)
@@ -110,6 +119,15 @@ class MQTTClient:
                 logger.warning("Connection not confirmed yet, retrying in %ds", backoff)
             except (OSError, ConnectionError, TimeoutError) as exc:
                 logger.warning("MQTT connect error: %s – retrying in %ds", exc, backoff)
+                if (
+                    self._broker_host in {"localhost", "127.0.0.1"}
+                    and _running_in_container()
+                ):
+                    logger.warning(
+                        "Container detected and broker is %s. If your broker runs on the host machine, "
+                        "set MQTT_BROKER=host.docker.internal (or pass --broker-host).",
+                        self._broker_host,
+                    )
             time.sleep(backoff)
             backoff = min(backoff * 2, max_backoff)
 
@@ -178,10 +196,18 @@ class ScenarioFactory:
         quality: int = cfg["quality"]
 
         assert cfg["hr"][0] <= hr <= cfg["hr"][1], f"hr {hr} out of range {cfg['hr']}"
-        assert cfg["bp_sys"][0] <= bp_sys <= cfg["bp_sys"][1], f"bp_sys {bp_sys} out of range {cfg['bp_sys']}"
-        assert cfg["bp_dia"][0] <= bp_dia <= cfg["bp_dia"][1], f"bp_dia {bp_dia} out of range {cfg['bp_dia']}"
-        assert cfg["o2_sat"][0] <= o2_sat <= cfg["o2_sat"][1], f"o2_sat {o2_sat} out of range {cfg['o2_sat']}"
-        assert cfg["temp"][0] <= temperature <= cfg["temp"][1], f"temperature {temperature} out of range {cfg['temp']}"
+        assert (
+            cfg["bp_sys"][0] <= bp_sys <= cfg["bp_sys"][1]
+        ), f"bp_sys {bp_sys} out of range {cfg['bp_sys']}"
+        assert (
+            cfg["bp_dia"][0] <= bp_dia <= cfg["bp_dia"][1]
+        ), f"bp_dia {bp_dia} out of range {cfg['bp_dia']}"
+        assert (
+            cfg["o2_sat"][0] <= o2_sat <= cfg["o2_sat"][1]
+        ), f"o2_sat {o2_sat} out of range {cfg['o2_sat']}"
+        assert (
+            cfg["temp"][0] <= temperature <= cfg["temp"][1]
+        ), f"temperature {temperature} out of range {cfg['temp']}"
 
         return {
             "timestamp": int(time.time() * 1000),
@@ -268,7 +294,9 @@ class VitalsSimulator:
         self._publish_count = 0
         self._connect_count = 0
         self._rng = random.Random(seed)
-        self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
+        self.mqtt_client: MQTTClient = MQTTClient(
+            broker_host=broker_host, broker_port=broker_port
+        )
         logger.info(
             "VitalsSimulator initialised: scenario=%s, broker=%s:%d, seed=%d",
             scenario,
@@ -314,19 +342,25 @@ class VitalsSimulator:
 
             vital = self._generate_vital()
             payload = json.dumps(vital)
-            success = self.mqtt_client.publish(config.MQTT_TOPIC, payload, qos=config.MQTT_QOS)
+            success = self.mqtt_client.publish(
+                config.MQTT_TOPIC, payload, qos=config.MQTT_QOS
+            )
             if success:
                 self._publish_count += 1
                 if self._publish_count % 100 == 0:
                     logger.info("Published %d vitals so far", self._publish_count)
             else:
-                logger.warning("Failed to publish vital reading #%d", self._publish_count + 1)
+                logger.warning(
+                    "Failed to publish vital reading #%d", self._publish_count + 1
+                )
 
             time.sleep(config.PUBLISH_INTERVAL_S)
 
     def shutdown(self) -> None:
         """Gracefully stop the event loop and close the MQTT connection."""
-        logger.info("VitalsSimulator shutting down after %d publishes", self._publish_count)
+        logger.info(
+            "VitalsSimulator shutting down after %d publishes", self._publish_count
+        )
         self._running = False
         self.mqtt_client.disconnect()
 
@@ -356,12 +390,23 @@ def main() -> None:
         default=os.environ.get("SCENARIO", "healthy"),
         help="Vital-signs scenario to simulate (default: healthy)",
     )
+    parser.add_argument(
+        "--broker-host",
+        default=config.MQTT_BROKER,
+        help=f"MQTT broker host (default: {config.MQTT_BROKER})",
+    )
+    parser.add_argument(
+        "--broker-port",
+        type=int,
+        default=config.MQTT_PORT,
+        help=f"MQTT broker port (default: {config.MQTT_PORT})",
+    )
     args = parser.parse_args()
 
     simulator = VitalsSimulator(
         scenario=args.scenario,
-        broker_host=config.MQTT_BROKER,
-        broker_port=config.MQTT_PORT,
+        broker_host=args.broker_host,
+        broker_port=args.broker_port,
     )
     try:
         simulator.run()

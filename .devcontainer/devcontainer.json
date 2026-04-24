@@ -25,11 +25,16 @@
     }
   },
   "postCreateCommand": "pip install -r requirements.txt && pip install pytest pytest-cov black flake8 mypy pylint isort pytest-mock",
-  "forwardPorts": [1883],
+  "postStartCommand": "mkdir -p /etc/mosquitto/conf.d /run/mosquitto && printf 'listener 1883\nallow_anonymous true\n\nlistener 9001\nprotocol websockets\nallow_anonymous true\n' > /etc/mosquitto/conf.d/docker.conf && mosquitto -c /etc/mosquitto/conf.d/docker.conf -d",
+  "forwardPorts": [1883, 9001],
   "portsAttributes": {
     "1883": {
-      "label": "MQTT Broker",
-      "onAutoForward": "notify"
+      "label": "MQTT Broker (TCP)",
+      "onAutoForward": "silent"
+    },
+    "9001": {
+      "label": "MQTT Broker (WebSocket)",
+      "onAutoForward": "silent"
     }
   },
   "remoteUser": "root",

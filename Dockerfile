@@ -14,6 +14,11 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 COPY tests/ ./tests/
+COPY mosquitto.conf /etc/mosquitto/mosquitto.conf
+
+# Startup script: launch mosquitto broker then the Python simulator
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
@@ -22,5 +27,4 @@ ENV MQTT_PORT=1883
 ENV SCENARIO=healthy
 ENV LOGLEVEL=INFO
 
-# Run simulator
-CMD ["python", "-m", "src.simulator", "--scenario", "healthy"]
+CMD ["/entrypoint.sh"]

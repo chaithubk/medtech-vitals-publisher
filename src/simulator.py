@@ -43,7 +43,9 @@ class MQTTClient:
         client_id: Optional client identifier; auto-generated when omitted.
     """
 
-    def __init__(self, broker_host: str, broker_port: int, client_id: Optional[str] = None) -> None:
+    def __init__(
+        self, broker_host: str, broker_port: int, client_id: Optional[str] = None
+    ) -> None:
         """Initialise the MQTT client.
 
         Args:
@@ -59,8 +61,11 @@ class MQTTClient:
         self._client = mqtt.Client(client_id=self._client_id)
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
+        self._client.on_publish = self._on_publish
         # Last Will: broker publishes "offline" if the client disconnects unexpectedly
-        self._client.will_set(config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True)
+        self._client.will_set(
+            config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True
+        )
         # loop_start() is intentionally deferred to connect() to avoid spawning
         # background threads for objects that may never actually connect.
 
@@ -79,7 +84,9 @@ class MQTTClient:
         """
         if rc == 0:
             self._connected = True
-            logger.info("Connected to MQTT broker %s:%d", self._broker_host, self._broker_port)
+            logger.info(
+                "Connected to MQTT broker %s:%d", self._broker_host, self._broker_port
+            )
         else:
             self._connected = False
             logger.warning("MQTT connection refused, rc=%d", rc)
@@ -97,6 +104,18 @@ class MQTTClient:
             logger.warning("Unexpected MQTT disconnect, rc=%d", rc)
         else:
             logger.info("MQTT broker disconnected cleanly")
+
+    def _on_publish(self, client: Any, userdata: Any, mid: int) -> None:
+        """paho on_publish callback.
+
+        Called when a message is successfully delivered (acknowledged by broker).
+
+        Args:
+            client: paho Client instance.
+            userdata: User-defined data (unused).
+            mid: Message ID of the published message.
+        """
+        logger.info("Message delivered to broker, mid=%d", mid)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -156,7 +175,10 @@ class MQTTClient:
                 )
             except (OSError, ConnectionError, TimeoutError) as exc:
                 logger.warning("MQTT connect error: %s – retrying in %ds", exc, backoff)
-                if self._broker_host in {"localhost", "127.0.0.1"} and _running_in_container():
+                if (
+                    self._broker_host in {"localhost", "127.0.0.1"}
+                    and _running_in_container()
+                ):
                     logger.warning(
                         "Container detected and broker is %s. If your broker runs on the host machine, "
                         "set MQTT_BROKER=host.docker.internal (or pass --broker-host).",
@@ -183,6 +205,7 @@ class MQTTClient:
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
             logger.warning("Publish failed, rc=%d", result.rc)
             return False
+        logger.info("Message queued for topic %s, mid=%d", topic, result.mid)
         return True
 
     def publish_status(self, status: str) -> None:
@@ -192,8 +215,13 @@ class MQTTClient:
             status: Status string, typically 'online' or 'offline'.
         """
         if self._connected:
-            self._client.publish(config.MQTT_STATUS_TOPIC, payload=status, qos=1, retain=True)
-            logger.info("Published status: %s", status)
+            result = self._client.publish(
+                config.MQTT_STATUS_TOPIC, payload=status, qos=1, retain=True
+            )
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                logger.info("Status message queued: %s, mid=%d", status, result.mid)
+            else:
+                logger.warning("Failed to queue status message: %s", status)
 
     def disconnect(self) -> None:
         """Disconnect from the MQTT broker and stop the network loop."""
@@ -340,7 +368,9 @@ class VitalsSimulator:
         self._publish_count = 0
         self._connect_count = 0
         self._rng = random.Random(seed)
-        self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
+        self.mqtt_client: MQTTClient = MQTTClient(
+            broker_host=broker_host, broker_port=broker_port
+        )
         logger.info(
             "VitalsSimulator initialised: scenario=%s, broker=%s:%d, seed=%d",
             scenario,
@@ -386,19 +416,25 @@ class VitalsSimulator:
 
             vital = self._generate_vital()
             payload = json.dumps(vital)
-            success = self.mqtt_client.publish(config.MQTT_TOPIC, payload, qos=config.MQTT_QOS)
+            success = self.mqtt_client.publish(
+                config.MQTT_TOPIC, payload, qos=config.MQTT_QOS
+            )
             if success:
                 self._publish_count += 1
                 if self._publish_count % 100 == 0:
                     logger.info("Published %d vitals so far", self._publish_count)
             else:
-                logger.warning("Failed to publish vital reading #%d", self._publish_count + 1)
+                logger.warning(
+                    "Failed to publish vital reading #%d", self._publish_count + 1
+                )
 
             time.sleep(config.PUBLISH_INTERVAL_S)
 
     def shutdown(self) -> None:
         """Gracefully stop the event loop and close the MQTT connection."""
-        logger.info("VitalsSimulator shutting down after %d publishes", self._publish_count)
+        logger.info(
+            "VitalsSimulator shutting down after %d publishes", self._publish_count
+        )
         self._running = False
         self.mqtt_client.publish_status("offline")
         self.mqtt_client.disconnect()

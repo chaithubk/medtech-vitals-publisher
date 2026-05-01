@@ -284,7 +284,7 @@ jobs:
   smoke-test-image:
     name: Smoke-test GHCR image
     runs-on: ubuntu-latest
-    needs: publish-image
+    needs: [publish-image, release]
     if: ${{ !inputs.prerelease }}
     timeout-minutes: 5
 

@@ -276,3 +276,74 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.release.outputs.new_version }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Smoke-test the published image in isolation, pulling directly from GHCR.
+  # Verifies: container starts, MQTT broker accepts connections, vitals flow.
+  # ─────────────────────────────────────────────────────────────────────────────
+  smoke-test-image:
+    name: Smoke-test GHCR image
+    runs-on: ubuntu-latest
+    needs: publish-image
+    if: ${{ !inputs.prerelease }}
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create isolated test network
+        run: docker network create smoke-net
+
+      - name: Start vitals-publisher container
+        run: |
+          docker run -d \
+            --name vitals-publisher \
+            --network smoke-net \
+            --hostname vitals-publisher \
+            -e MQTT_BROKER=localhost \
+            -e MQTT_PORT=1883 \
+            -e PUBLISH_INTERVAL_S=5 \
+            -e SCENARIO=healthy \
+            -e LOGLEVEL=DEBUG \
+            -e PYTHONUNBUFFERED=1 \
+            ghcr.io/${{ github.repository_owner }}/medtech-vitals-publisher:${{ needs.release.outputs.new_version }}
+
+      - name: Wait for MQTT broker to be healthy
+        run: |
+          echo "Waiting for vitals-publisher healthcheck..."
+          timeout 40 sh -c \
+            'until [ "$(docker inspect --format={{.State.Health.Status}} vitals-publisher 2>/dev/null)" = "healthy" ]; do sleep 2; done'
+          echo "✅ Container is healthy"
+
+      - name: Verify MQTT broker accepts connections
+        run: |
+          docker run --rm --network smoke-net \
+            --entrypoint mosquitto_pub eclipse-mosquitto:2 \
+            -h vitals-publisher -p 1883 -t medtech/smoke/probe -m ping
+          echo "✅ Broker reachable"
+
+      - name: Verify vitals are being published
+        run: |
+          docker run --rm --network smoke-net \
+            --entrypoint mosquitto_sub eclipse-mosquitto:2 \
+            -h vitals-publisher -p 1883 -t 'medtech/vitals/latest' -C 1 -W 20
+          echo "✅ Vitals message received"
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs vitals-publisher
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker rm -f vitals-publisher 2>/dev/null || true
+          docker network rm smoke-net    2>/dev/null || true

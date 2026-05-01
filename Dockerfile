@@ -27,4 +27,7 @@ ENV MQTT_PORT=1883
 ENV SCENARIO=healthy
 ENV LOGLEVEL=INFO
 
+HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
+    CMD mosquitto_pub -h localhost -p ${MQTT_PORT:-1883} -t medtech/health/probe -m ping || exit 1
+
 CMD ["/entrypoint.sh"]

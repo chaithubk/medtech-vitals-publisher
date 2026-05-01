@@ -1,0 +1,77 @@
+name: Smoke-test vitals-publisher image
+description: Starts the image, waits for healthy, verifies MQTT broker and vitals publication.
+
+inputs:
+  image:
+    description: Full image reference to smoke-test
+    required: true
+  registry-token:
+    description: Token for GHCR login. Leave empty to skip login (local images).
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Login to GHCR
+      if: ${{ inputs.registry-token != '' }}
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.registry-token }}
+
+    - name: Create isolated test network
+      shell: bash
+      run: docker network create smoke-net
+
+    - name: Start vitals-publisher container
+      shell: bash
+      run: |
+        docker run -d \
+          --name vitals-publisher \
+          --network smoke-net \
+          --hostname vitals-publisher \
+          -e MQTT_BROKER=localhost \
+          -e MQTT_PORT=1883 \
+          -e PUBLISH_INTERVAL_S=5 \
+          -e SCENARIO=healthy \
+          -e LOGLEVEL=DEBUG \
+          -e PYTHONUNBUFFERED=1 \
+          ${{ inputs.image }}
+
+    - name: Wait for container to be healthy
+      shell: bash
+      run: |
+        echo "Waiting for vitals-publisher healthcheck..."
+        timeout 40 sh -c \
+          'until [ "$(docker inspect --format={{.State.Health.Status}} vitals-publisher 2>/dev/null)" = "healthy" ]; do sleep 2; done'
+        echo "✅ Container is healthy"
+
+    - name: Verify MQTT broker accepts connections
+      shell: bash
+      run: |
+        docker run --rm --network smoke-net \
+          --entrypoint mosquitto_pub eclipse-mosquitto:2 \
+          -h vitals-publisher -p 1883 -t medtech/smoke/probe -m ping
+        echo "✅ Broker reachable"
+
+    - name: Verify vitals are being published
+      shell: bash
+      run: |
+        docker run --rm --network smoke-net \
+          --entrypoint mosquitto_sub eclipse-mosquitto:2 \
+          -h vitals-publisher -p 1883 -t 'medtech/vitals/latest' -C 1 -W 20
+        echo "✅ Vitals message received"
+
+    - name: Dump container logs on failure
+      if: failure()
+      shell: bash
+      run: docker logs vitals-publisher
+
+    - name: Tear down
+      if: always()
+      shell: bash
+      run: |
+        docker rm -f vitals-publisher 2>/dev/null || true
+        docker network rm smoke-net    2>/dev/null || true

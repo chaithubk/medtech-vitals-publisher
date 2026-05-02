@@ -160,22 +160,22 @@ jobs:
 
             case "$line" in
               "- feat:"*)
-                printf '%s\n' "$line" >> "$feat_file"
+                printf -- '%s\n' "$line" >> "$feat_file"
                 ;;
               "- fix:"*)
-                printf '%s\n' "$line" >> "$fix_file"
+                printf -- '%s\n' "$line" >> "$fix_file"
                 ;;
               "- chore:"*|"- ci:"*|"- build:"*)
-                printf '%s\n' "$line" >> "$maintenance_file"
+                printf -- '%s\n' "$line" >> "$maintenance_file"
                 ;;
               "- docs:"*)
-                printf '%s\n' "$line" >> "$docs_file"
+                printf -- '%s\n' "$line" >> "$docs_file"
                 ;;
               "- test:"*)
-                printf '%s\n' "$line" >> "$test_file"
+                printf -- '%s\n' "$line" >> "$test_file"
                 ;;
               *)
-                printf '%s\n' "$line" >> "$other_file"
+                printf -- '%s\n' "$line" >> "$other_file"
                 ;;
             esac
           done <<< "$commit_lines"
@@ -186,14 +186,14 @@ jobs:
 
             if [[ -s "$file_path" ]]; then
               {
-                printf '### %s\n\n' "$title"
+                printf -- '### %s\n\n' "$title"
                 cat "$file_path"
-                printf '\n'
+                printf -- '\n'
               } >> "$changelog_file"
             fi
           }
 
-          printf "## What's Changed in %s (%s)\n\n" "$new_version" "$(date -u +%F)" > "$changelog_file"
+          printf -- "## What's Changed in %s (%s)\n\n" "$new_version" "$(date -u +%F)" > "$changelog_file"
           append_section "🚀 New Features" "$feat_file"
           append_section "🐛 Bug Fixes" "$fix_file"
           append_section "🔧 Maintenance" "$maintenance_file"

@@ -32,10 +32,17 @@ MQTT_TOPIC: str = "medtech/vitals/latest"
 MQTT_STATUS_TOPIC: str = "medtech/vitals/status"
 MQTT_QOS: int = 1
 
-# Publishing cadence
-PUBLISH_INTERVAL_S: int = 10
+# Publishing cadence (override with PUBLISH_INTERVAL_S env var or --interval CLI flag)
+PUBLISH_INTERVAL_S: int = _get_int_env("PUBLISH_INTERVAL_S", 10)
 
-# Vital-sign ranges and quality scores per scenario
+# Patient / simulation settings
+PATIENT_ID: str = os.environ.get("PATIENT_ID", "P001")
+SYNTHEA_DATA_PATH: str = os.environ.get("SYNTHEA_DATA_PATH", "")
+SCENARIO_STAGE: str = os.environ.get("SCENARIO_STAGE", "")
+SEED: int = _get_int_env("SEED", 42)
+
+# Vital-sign ranges and quality scores per scenario (v1 legacy — kept for backward
+# compatibility; v2 ranges are defined in src/progression.py)
 SCENARIOS: dict = {
     "healthy": {
         "hr": (60, 100),

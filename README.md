@@ -4,9 +4,16 @@ Synthetic patient vitals generator for MedTech edge device platform.
 
 ## Overview
 
-Generates realistic physiological vital signs (HR, BP, O2, Temp) and publishes
-them to an MQTT broker every 10 seconds. Three clinical scenarios are supported:
-`healthy`, `sepsis`, and `critical`.
+Generates realistic physiological vital signs and publishes them to an MQTT
+broker every 10 seconds (configurable).  Three high-level clinical scenarios
+are supported: `healthy`, `sepsis`, and `critical`.
+
+**v2 highlights:**
+- Multi-stage sepsis progression engine (`pre_sepsis → sepsis_onset → sepsis → septic_shock`).
+- Synthea-based synthetic patient data bridge (optional).
+- v2 MQTT payload with `respiratory_rate`, SIRS/qSOFA scores, sepsis stage
+  metadata, and `version: "2.0"`.
+- Deterministic replay — same `--seed` always produces the same sequence.
 
 ## Tech Stack
 
@@ -47,10 +54,6 @@ ssh-add ~/.ssh/id_ed25519_xyz
 ssh-add -l
 ```
 
-If you use multiple GitHub accounts on the host, that is fine. Keep your alias
-setup in WSL if you need it there, but the dev container should not depend on a
-host-specific SSH alias.
-
 ### 2. Use a canonical Git remote in the container
 
 Inside the container, prefer the standard GitHub remote format:
@@ -59,10 +62,6 @@ Inside the container, prefer the standard GitHub remote format:
 git remote set-url origin <git-ssh-url>
 ```
 
-Do not rely on WSL-only SSH host aliases such as `github-accountA` unless you
-also copy the matching SSH config into the container. In this repo that extra
-alias is unnecessary.
-
 ### 3. Reopen or rebuild the dev container
 
 After your WSL agent is ready, reopen the folder in the container or rebuild the
@@ -70,38 +69,18 @@ container so VS Code can forward the SSH agent into the container session.
 
 ### 4. Verify Git auth inside the container
 
-Run these checks in the container:
-
 ```bash
 echo "$SSH_AUTH_SOCK"
 ssh-add -l
 ssh -T git@github.com
 ```
 
-Expected result:
-- `SSH_AUTH_SOCK` is set.
-- `ssh-add -l` lists your key.
-- `ssh -T git@github.com` confirms GitHub authentication.
-
 ### 5. Verify the local broker and app
-
-Once the container is up, confirm the development services and tests:
 
 ```bash
 python -m pytest -q
-python -m src.simulator --scenario healthy
+python -m src --scenario healthy
 ```
-
-### Notes for multiple GitHub accounts
-
-- Multiple keys on the host are fine as long as the correct key is loaded in the
-  WSL agent before the container starts.
-- If you need tighter control, load only the account-specific key you want to
-  use before opening the container.
-- If your host uses SSH aliases to choose between accounts, that host-side alias
-  does not automatically exist inside the container.
-- The simplest container setup is to use `git@github.com:owner/repo.git` and let
-  the forwarded agent provide the right key.
 
 ## Generating Synthea Datasets (CI Artifact)
 
@@ -155,21 +134,192 @@ when needed (e.g. 1000 for load testing).
 
 ```bash
 # Default scenario (healthy)
-python -m src.simulator --scenario healthy
+python -m src --scenario healthy
 
-# Other scenarios
-python -m src.simulator --scenario sepsis
-python -m src.simulator --scenario critical
+# Sepsis progression scenario
+python -m src --scenario sepsis
+
+# Sepsis starting at a specific stage
+python -m src --scenario sepsis --stage sepsis_onset
+
+# Set a specific patient ID and seed for reproducibility
+python -m src --scenario sepsis --patient-id PAT-007 --seed 42
+
+# Override publish interval (e.g. 5 seconds for faster testing)
+python -m src --scenario sepsis --interval 5
+
+# Use Synthea output as data source
+python -m src --scenario sepsis --synthea-path data/synthea/csv --patient-id <uuid>
 ```
 
-Environment variables override defaults without changing code:
+### Environment Variables
 
-| Variable   | Default     | Description              |
-|------------|-------------|--------------------------|
-| MQTT_BROKER | localhost  | Broker hostname or IP    |
-| MQTT_PORT  | 1883        | Broker TCP port          |
-| SCENARIO   | healthy     | Clinical scenario        |
-| LOGLEVEL   | INFO        | Logging verbosity        |
+| Variable             | Default     | Description                                        |
+|----------------------|-------------|----------------------------------------------------|
+| `MQTT_BROKER`        | `localhost` | Broker hostname or IP                              |
+| `MQTT_PORT`          | `1883`      | Broker TCP port                                    |
+| `SCENARIO`           | `healthy`   | Clinical scenario (`healthy`, `sepsis`, `critical`)|
+| `PATIENT_ID`         | `P001`      | Patient identifier in every v2 payload             |
+| `SYNTHEA_DATA_PATH`  | *(empty)*   | Path to Synthea `output/csv` directory             |
+| `SCENARIO_STAGE`     | *(empty)*   | Starting stage within scenario                     |
+| `SEED`               | `42`        | RNG seed for deterministic replay                  |
+| `PUBLISH_INTERVAL_S` | `10`        | Seconds between published readings                 |
+| `LOGLEVEL`           | `INFO`      | Logging verbosity                                  |
+
+## v2 MQTT Payload Schema
+
+All messages are published to `medtech/vitals/latest` as JSON.
+
+```json
+{
+  "version": "2.0",
+  "patient_id": "P001",
+  "scenario": "sepsis",
+  "scenario_stage": "sepsis_onset",
+  "timestamp": 1712973600000,
+  "hr": 118.3,
+  "bp_sys": 101.5,
+  "bp_dia": 63.2,
+  "o2_sat": 91.8,
+  "temperature": 39.1,
+  "respiratory_rate": 23.4,
+  "wbc": 15.2,
+  "lactate": 2.7,
+  "sirs_score": 3,
+  "qsofa_score": 2,
+  "sepsis_stage": "septic_shock",
+  "sepsis_onset_ts": 1712973480000,
+  "quality": 85,
+  "source": "simulator"
+}
+```
+
+### Field Reference
+
+| Field             | Type        | Description                                                     |
+|-------------------|-------------|-----------------------------------------------------------------|
+| `version`         | `string`    | Schema version — always `"2.0"` for this release               |
+| `patient_id`      | `string`    | Patient identifier                                              |
+| `scenario`        | `string`    | High-level scenario: `healthy`, `sepsis`, `critical`            |
+| `scenario_stage`  | `string`    | Active progression stage (see stages below)                     |
+| `timestamp`       | `integer`   | Wall-clock time in **milliseconds** since Unix epoch            |
+| `hr`              | `float`     | Heart rate (bpm)                                                |
+| `bp_sys`          | `float`     | Systolic blood pressure (mmHg)                                  |
+| `bp_dia`          | `float`     | Diastolic blood pressure (mmHg)                                 |
+| `o2_sat`          | `float`     | Peripheral O2 saturation (%)                                    |
+| `temperature`     | `float`     | Core body temperature (°C)                                      |
+| `respiratory_rate`| `float`     | Respiratory rate (breaths/min)                                  |
+| `wbc`             | `float`     | White blood cell count (x10^3/uL) — simulated/estimated         |
+| `lactate`         | `float`     | Serum lactate (mmol/L) — simulated/estimated                    |
+| `sirs_score`      | `integer`   | SIRS criteria met (0-4)                                         |
+| `qsofa_score`     | `integer`   | qSOFA score (0-3)                                               |
+| `sepsis_stage`    | `string`    | Classified stage: `none`, `sirs`, `sepsis`, `septic_shock`      |
+| `sepsis_onset_ts` | `int/null`  | ms-epoch when sepsis first detected; `null` if not yet          |
+| `quality`         | `integer`   | Sensor quality estimate (0-100)                                 |
+| `source`          | `string`    | Data source: `"simulator"` or patient UUID from Synthea         |
+
+### Progression Stages
+
+| Stage          | Description                                         |
+|----------------|-----------------------------------------------------|
+| `healthy`      | Stable normal physiology                            |
+| `pre_sepsis`   | Mild drift — SIRS may be < 2                        |
+| `sepsis_onset` | Early deterioration — SIRS >= 2 starts here         |
+| `sepsis`       | Progressive decline — qSOFA >= 2                    |
+| `septic_shock` | Haemodynamic failure — MAP < 65 or lactate > 2      |
+
+### Scoring Definitions
+
+**SIRS** (Systemic Inflammatory Response Syndrome) — each criterion adds 1 point:
+1. Temperature > 38 °C or < 36 °C
+2. Heart rate > 90 bpm
+3. Respiratory rate > 20 breaths/min
+4. WBC > 12,000/uL or < 4,000/uL
+
+**qSOFA** (quick Sequential Organ Failure Assessment) — each criterion adds 1 point:
+1. Respiratory rate >= 22 breaths/min
+2. Systolic BP <= 100 mmHg
+3. Altered mental status (GCS < 15)
+
+**Sepsis classification** (Sepsis-3, Singer et al. 2016):
+- `septic_shock`: qSOFA >= 2 AND (BP_sys < 65 OR lactate > 2.0)
+- `sepsis`: qSOFA >= 2
+- `sirs`: SIRS score >= 2
+- `none`: otherwise
+
+## Synthea Integration
+
+[Synthea](https://synthetichealth.github.io/synthea/) is an open-source
+synthetic patient generator maintained by MITRE Corporation.
+
+### Generating a Cohort
+
+1. **Download** the Synthea jar (requires Java 11+):
+
+   ```bash
+   wget https://github.com/synthetichealth/synthea/releases/latest/download/synthea-with-dependencies.jar
+   ```
+
+2. **Run** with the sepsis module and CSV export enabled:
+
+   ```bash
+   java -jar synthea-with-dependencies.jar \
+       -s 42 \
+       --exporter.csv.export=true \
+       --exporter.fhir.export=false \
+       -m sepsis \
+       -p 50 \
+       Massachusetts
+   ```
+
+3. **Identify** sepsis patients:
+
+   ```python
+   from src.synthea_bridge import SyntheaBridge
+   b = SyntheaBridge("output/csv")
+   print("Sepsis candidates:", b.list_sepsis_patients())
+   ```
+
+4. **Run** the publisher with a selected patient:
+
+   ```bash
+   python -m src \
+       --scenario sepsis \
+       --synthea-path output/csv \
+       --patient-id <uuid-from-step-3> \
+       --seed 42
+   ```
+
+### How the Bridge Works
+
+The `SyntheaBridge` reads `observations.csv` and maps LOINC codes to v2 fields:
+
+| LOINC   | Description             | v2 Field            |
+|---------|-------------------------|---------------------|
+| 8867-4  | Heart rate              | `hr`                |
+| 8480-6  | Systolic BP             | `bp_sys`            |
+| 8462-4  | Diastolic BP            | `bp_dia`            |
+| 59408-5 | O2 saturation (pulse)   | `o2_sat`            |
+| 8310-5  | Body temperature        | `temperature`       |
+| 9279-1  | Respiratory rate        | `respiratory_rate`  |
+| 6690-2  | WBC count               | `wbc`               |
+| 2524-7  | Lactate                 | `lactate`           |
+
+Fields absent from Synthea output (e.g. lactate in default modules) are filled
+by the built-in progression engine as a fallback.
+
+## Module Structure
+
+```
+src/
+├── __init__.py          # Package init, version (2.0.0)
+├── __main__.py          # python -m src entry point
+├── config.py            # All env-var-driven configuration
+├── schema.py            # v2 payload dataclass + SIRS/qSOFA helpers
+├── progression.py       # Multi-stage sepsis progression engine
+├── synthea_bridge.py    # Synthea CSV reader / FHIR bridge
+└── simulator.py         # VitalsSimulator orchestrator + MQTTClient
+```
 
 ## Verifying Messages
 
@@ -183,11 +333,10 @@ mosquitto_sub -h localhost -p 1883 -t medtech/vitals/status -v
 ```
 
 **From a browser on Windows/macOS** — use the HiveMQ WebSocket client:
-1. Open **http://www.hivemq.com/demos/websocket-client/** (use HTTP, not HTTPS —
-   browsers block unencrypted WebSocket connections from HTTPS pages).
+1. Open **http://www.hivemq.com/demos/websocket-client/**
 2. Set Host: `localhost`, Port: `9001`, Path: `/`.
 3. Click **Connect** — status turns green.
-3. Subscribe to topic `medtech/vitals/latest` for vitals or `medtech/vitals/status` for online/offline state.
+4. Subscribe to `medtech/vitals/latest`.
 5. Run the simulator; messages appear in real time.
 
 **Desktop GUI** — [MQTT Explorer](https://mqtt-explorer.com/) connects directly

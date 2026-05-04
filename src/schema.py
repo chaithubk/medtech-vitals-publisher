@@ -23,7 +23,7 @@ sirs_score       : int   – SIRS criteria met (0-4)
 qsofa_score      : int   – qSOFA score (0-3)
 sepsis_stage     : str   – 'none' | 'sirs' | 'sepsis' | 'septic_shock'
 sepsis_onset_ts  : int | None – ms-epoch when sepsis first detected (None if not yet)
-quality          : int   – sensor quality estimate (0-100)
+quality          : str   – signal quality indicator ('good' | 'degraded' | 'poor')
 source           : str   – data source label
 """
 
@@ -166,7 +166,7 @@ class VitalsPayloadV2:
         qsofa_score: qSOFA score (0-3).
         sepsis_stage: Classified stage string.
         sepsis_onset_ts: ms-epoch of sepsis onset, or None.
-        quality: Sensor quality 0-100.
+        quality: Signal quality indicator (e.g. 'good', 'degraded', 'poor').
         source: Data source label.
         version: Schema version, defaults to SCHEMA_VERSION.
     """
@@ -187,7 +187,7 @@ class VitalsPayloadV2:
     qsofa_score: int
     sepsis_stage: str
     sepsis_onset_ts: Optional[int]
-    quality: int
+    quality: str
     source: str
     version: str = field(default=SCHEMA_VERSION)
 
@@ -213,7 +213,7 @@ def build_payload(
     respiratory_rate: float,
     wbc: float,
     lactate: float,
-    quality: int,
+    quality: str,
     source: str,
     sepsis_onset_ts: Optional[int] = None,
     altered_mentation: bool = False,
@@ -236,7 +236,7 @@ def build_payload(
         respiratory_rate: Respiratory rate in breaths/min.
         wbc: White blood cell count ×10³/µL.
         lactate: Serum lactate mmol/L.
-        quality: Sensor quality 0-100.
+        quality: Signal quality indicator string (e.g. 'good', 'degraded', 'poor').
         source: Data source label.
         sepsis_onset_ts: ms-epoch of first sepsis onset, or None.
         altered_mentation: True when GCS < 15.

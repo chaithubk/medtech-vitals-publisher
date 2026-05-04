@@ -41,7 +41,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (12.0, 18.0),
         "wbc": (4.5, 10.0),
         "lactate": (0.5, 1.5),
-        "quality": 95,
+        "quality": "good",
     },
     "pre_sepsis": {
         "hr": (85.0, 105.0),
@@ -52,7 +52,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (16.0, 22.0),
         "wbc": (10.0, 15.0),
         "lactate": (1.0, 2.0),
-        "quality": 90,
+        "quality": "good",
     },
     "sepsis_onset": {
         "hr": (100.0, 120.0),
@@ -63,7 +63,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (20.0, 26.0),
         "wbc": (13.0, 18.0),
         "lactate": (1.5, 3.0),
-        "quality": 85,
+        "quality": "degraded",
     },
     "sepsis": {
         "hr": (115.0, 135.0),
@@ -74,7 +74,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (24.0, 30.0),
         "wbc": (15.0, 22.0),
         "lactate": (2.5, 4.5),
-        "quality": 80,
+        "quality": "degraded",
     },
     "septic_shock": {
         "hr": (130.0, 155.0),
@@ -85,7 +85,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (28.0, 38.0),
         "wbc": (18.0, 30.0),
         "lactate": (4.0, 8.0),
-        "quality": 70,
+        "quality": "poor",
     },
 }
 

@@ -44,7 +44,7 @@ def test_v2_payload_smoke():
         respiratory_rate=22.0,
         wbc=14.0,
         lactate=2.2,
-        quality=85,
+        quality="degraded",
         source="simulator",
     )
     d = p.to_dict()

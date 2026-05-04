@@ -167,11 +167,11 @@ class TestReadingStructure:
         for key in ("hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate", "wbc", "lactate"):
             assert isinstance(reading[key], (int, float)), f"{key} is not numeric"
 
-    def test_quality_is_int(self):
-        """quality field is an integer."""
+    def test_quality_is_str(self):
+        """quality field is a string."""
         eng = ProgressionEngine(scenario="healthy", seed=42)
         reading = eng.next_reading()
-        assert isinstance(reading["quality"], int)
+        assert isinstance(reading["quality"], str)
 
 
 # ---------------------------------------------------------------------------

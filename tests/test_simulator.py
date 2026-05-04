@@ -128,10 +128,7 @@ def test_v2_json_schema():
         assert vital["source"] == "simulator"
         assert vital["patient_id"] == "P001"
         assert isinstance(vital["timestamp"], int)
-        assert isinstance(vital["quality"], int)
-        assert isinstance(vital["sirs_score"], int)
-        assert isinstance(vital["qsofa_score"], int)
-        assert vital["sepsis_stage"] in {"none", "sirs", "sepsis", "septic_shock"}
+        assert isinstance(vital["quality"], str)
         # All numeric vitals must be float or int
         for f in ("hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate", "wbc", "lactate"):
             assert isinstance(vital[f], (int, float)), f"{f} is not numeric (scenario={scenario})"

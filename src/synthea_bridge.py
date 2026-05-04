@@ -264,7 +264,7 @@ class SyntheaBridge:
                 "respiratory_rate": obs.get("respiratory_rate", fb["respiratory_rate"]),
                 "wbc": obs.get("wbc", fb["wbc"]),
                 "lactate": obs.get("lactate", fb["lactate"]),
-                "quality": 88,
+                "quality": "good",
                 "sepsis_onset_ts": fb.get("sepsis_onset_ts"),
             }
             results.append(reading)
@@ -423,6 +423,6 @@ def _default_vitals(ts_ms: int) -> Dict[str, Any]:
         "respiratory_rate": 16.0,
         "wbc": 7.5,
         "lactate": 1.0,
-        "quality": 88,
+        "quality": "good",
         "sepsis_onset_ts": None,
     }

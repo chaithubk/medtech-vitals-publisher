@@ -4,8 +4,7 @@ import time
 
 import pytest
 
-from src.progression import ProgressionEngine, _STAGE_PARAMS, _VALID_STAGES
-
+from src.progression import ProgressionEngine
 
 # ---------------------------------------------------------------------------
 # Construction validation
@@ -135,8 +134,18 @@ class TestReadingStructure:
     """Tests for the dict returned by next_reading()."""
 
     _REQUIRED_KEYS = {
-        "scenario_stage", "timestamp", "hr", "bp_sys", "bp_dia", "o2_sat",
-        "temperature", "respiratory_rate", "wbc", "lactate", "quality", "sepsis_onset_ts",
+        "scenario_stage",
+        "timestamp",
+        "hr",
+        "bp_sys",
+        "bp_dia",
+        "o2_sat",
+        "temperature",
+        "respiratory_rate",
+        "wbc",
+        "lactate",
+        "quality",
+        "sepsis_onset_ts",
     }
 
     def test_required_keys_present(self):
@@ -164,7 +173,16 @@ class TestReadingStructure:
         """All vital fields are numeric."""
         eng = ProgressionEngine(scenario="sepsis", seed=42)
         reading = eng.next_reading()
-        for key in ("hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate", "wbc", "lactate"):
+        for key in (
+            "hr",
+            "bp_sys",
+            "bp_dia",
+            "o2_sat",
+            "temperature",
+            "respiratory_rate",
+            "wbc",
+            "lactate",
+        ):
             assert isinstance(reading[key], (int, float)), f"{key} is not numeric"
 
     def test_quality_is_str(self):

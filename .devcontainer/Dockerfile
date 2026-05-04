@@ -36,6 +36,12 @@ RUN apt-get update && apt-get install -y \
 # Ensure pip is up to date
 RUN pip install --upgrade pip setuptools wheel
 
+# Preinstall runtime + CI parity tooling in the image so the container is ready
+# without extra manual setup.
+COPY requirements.txt /tmp/requirements.txt
+COPY requirements-dev.txt /tmp/requirements-dev.txt
+RUN pip install -r /tmp/requirements.txt -r /tmp/requirements-dev.txt
+
 # Set working directory
 WORKDIR /workspace
 

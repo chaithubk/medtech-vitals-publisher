@@ -203,10 +203,7 @@ class SyntheaBridge:
         with open(self._conditions_path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                if (
-                    row.get("CODE", "").strip() == "91302008"
-                    and row.get("PATIENT", "").strip() == patient_id
-                ):
+                if row.get("CODE", "").strip() == "91302008" and row.get("PATIENT", "").strip() == patient_id:
                     date_str = row.get("START", "").strip()
                     if date_str:
                         return _parse_date_to_ms(date_str)
@@ -232,9 +229,7 @@ class SyntheaBridge:
         """
         raw_rows = self._read_patient_observations(patient_id)
         if not raw_rows:
-            logger.warning(
-                "No observations found for requested patient in %s", self._obs_path
-            )
+            logger.warning("No observations found for requested patient in %s", self._obs_path)
             return []
 
         # Group by timestamp
@@ -300,9 +295,7 @@ class SyntheaBridge:
                 while True:
                     yield fallback_engine.next_reading()
             else:
-                logger.warning(
-                    "No readings for patient '%s'; yielding nothing.", patient_id
-                )
+                logger.warning("No readings for patient '%s'; yielding nothing.", patient_id)
             return
 
         # Compute the interval to advance timestamps on each loop cycle.
@@ -322,9 +315,7 @@ class SyntheaBridge:
 
         while True:
             for r in readings:
-                anchored_ts = (
-                    now_ms + (r["timestamp"] - base_ts) + cycle * loop_offset_ms
-                )
+                anchored_ts = now_ms + (r["timestamp"] - base_ts) + cycle * loop_offset_ms
                 yield {**r, "timestamp": anchored_ts}
             if not loop:
                 break
@@ -334,9 +325,7 @@ class SyntheaBridge:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _read_patient_observations(
-        self, patient_id: str
-    ) -> List[Tuple[int, str, float]]:
+    def _read_patient_observations(self, patient_id: str) -> List[Tuple[int, str, float]]:
         """Parse observations.csv and return (timestamp_ms, field, value) tuples.
 
         Args:
@@ -392,9 +381,7 @@ def _parse_date_to_ms(date_str: str) -> int:
     """
     for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            dt = datetime.datetime.strptime(date_str, fmt).replace(
-                tzinfo=datetime.timezone.utc
-            )
+            dt = datetime.datetime.strptime(date_str, fmt).replace(tzinfo=datetime.timezone.utc)
             return int(dt.timestamp() * 1000)
         except ValueError:
             continue

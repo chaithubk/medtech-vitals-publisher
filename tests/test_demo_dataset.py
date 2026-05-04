@@ -114,16 +114,12 @@ class TestIterPatientWithDemoData:
     """iter_patient() streams the seeded demo trajectory and preserves monotonic time."""
 
     def test_iter_patient_yields_with_engine(self, bridge, engine):
-        gen = bridge.iter_patient(
-            DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True
-        )
+        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
         readings = list(itertools.islice(gen, 10))
         assert len(readings) == 10
 
     def test_readings_have_correct_fields(self, bridge, engine):
-        gen = bridge.iter_patient(
-            DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True
-        )
+        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
         r = next(gen)
         required = {
             "scenario_stage",
@@ -143,9 +139,7 @@ class TestIterPatientWithDemoData:
 
     def test_readings_have_sepsis_vitals(self, bridge, engine):
         """Readings from the sepsis engine should show sepsis-range values within 24 ticks."""
-        gen = bridge.iter_patient(
-            DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True
-        )
+        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
         readings = list(itertools.islice(gen, 24))
         # At least one reading should be in a sepsis or later stage
         stages = {r["scenario_stage"] for r in readings}
@@ -153,15 +147,11 @@ class TestIterPatientWithDemoData:
         assert stages & sepsis_stages, f"No sepsis stages seen, got: {stages}"
 
     def test_timestamps_are_monotonically_increasing(self, bridge, engine):
-        gen = bridge.iter_patient(
-            DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True
-        )
+        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
         readings = list(itertools.islice(gen, 12))
         timestamps = [r["timestamp"] for r in readings]
         for i in range(1, len(timestamps)):
-            assert (
-                timestamps[i] > timestamps[i - 1]
-            ), f"timestamp[{i}]={timestamps[i]} not > [{i-1}]={timestamps[i-1]}"
+            assert timestamps[i] > timestamps[i - 1], f"timestamp[{i}]={timestamps[i]} not > [{i-1}]={timestamps[i-1]}"
 
 
 # ---------------------------------------------------------------------------

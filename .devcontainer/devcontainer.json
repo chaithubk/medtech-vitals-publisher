@@ -1,7 +1,7 @@
 {
   "name": "Vitals Publisher (Python 3.11)",
   "dockerFile": "Dockerfile",
-  "context": ".",
+  "context": "..",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -14,7 +14,7 @@
         "github.copilot-chat"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.defaultInterpreterPath": "/workspaces/medtech-vitals-publisher/.venv/bin/python",
         "python.linting.enabled": true,
         "python.formatting.provider": "black",
         "[python]": {
@@ -24,7 +24,7 @@
       }
     }
   },
-  "postCreateCommand": "pip install -r requirements.txt && pip install pytest pytest-cov black flake8 mypy pylint isort pytest-mock",
+  "postCreateCommand": "bash -lc 'python -m venv .venv && source .venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt -r requirements-dev.txt'",
   "postStartCommand": "mkdir -p /etc/mosquitto/conf.d /run/mosquitto && printf 'listener 1883\nallow_anonymous true\n\nlistener 9001\nprotocol websockets\nallow_anonymous true\n' > /etc/mosquitto/conf.d/docker.conf && mosquitto -c /etc/mosquitto/conf.d/docker.conf -d",
   "forwardPorts": [1883, 9001],
   "portsAttributes": {

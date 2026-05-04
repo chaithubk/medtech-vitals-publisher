@@ -108,9 +108,7 @@ class TestContractCompliance:
         payload = _generate_payload("healthy")
         defined = set(vitals_schema["properties"].keys())
         extra = payload.keys() - defined
-        assert not extra, (
-            f"Payload contains fields not defined in contract schema: {extra}"
-        )
+        assert not extra, f"Payload contains fields not defined in contract schema: {extra}"
 
     def test_version_field_is_2_0(self, vitals_schema):
         """version field must be exactly '2.0' as required by the contract."""
@@ -153,7 +151,11 @@ class TestContractCompliance:
     def test_sepsis_stage_enum(self, vitals_schema):
         """sepsis_stage value must be one of the enum values in the contract."""
         valid_stages = {"none", "sirs", "sepsis", "septic_shock"}
-        for scenario, stage in [("healthy", None), ("sepsis", "sepsis"), ("critical", None)]:
+        for scenario, stage in [
+            ("healthy", None),
+            ("sepsis", "sepsis"),
+            ("critical", None),
+        ]:
             payload = _generate_payload(scenario, stage)
             jsonschema.validate(instance=payload, schema=vitals_schema)
             assert payload["sepsis_stage"] in valid_stages

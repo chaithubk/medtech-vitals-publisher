@@ -82,6 +82,14 @@ python -m pytest -q
 python -m src --scenario healthy
 ```
 
+### 6. Local CI parity checks
+
+Run all CI-equivalent local checks (with safe auto-fixes) using:
+
+```bash
+bash tools/check_ci.sh
+```
+
 ## Generating Synthea Datasets (CI Artifact)
 
 The workflow `.github/workflows/generate-synthea-dataset.yml` downloads a

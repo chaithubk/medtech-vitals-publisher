@@ -1,0 +1,157 @@
+name: Generate Synthea Dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      synthea_version:
+        description: "Synthea release version (tag without the leading 'v')"
+        required: true
+        default: "3.3.0"
+      module:
+        description: "Clinical module to simulate (e.g. sepsis, diabetes)"
+        required: true
+        default: "sepsis"
+      population:
+        description: "Number of synthetic patients to generate"
+        required: true
+        default: "10"
+      seed:
+        description: "Random seed for reproducibility"
+        required: true
+        default: "42"
+      state:
+        description: "US state / location for Synthea demographics"
+        required: true
+        default: "Massachusetts"
+      artifact_name:
+        description: "Override artifact name (leave blank to auto-compute)"
+        required: false
+        default: ""
+
+jobs:
+  generate:
+    name: Generate CSV Dataset
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Java (Temurin 17) ─────────────────────────────────────────────────
+      - name: Set up Java (Temurin 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # ── 3. Download Synthea JAR ──────────────────────────────────────────────
+      - name: Download synthea-with-dependencies.jar
+        run: |
+          VERSION="${{ github.event.inputs.synthea_version }}"
+          JAR_URL="https://github.com/synthetichealth/synthea/releases/download/v${VERSION}/synthea-with-dependencies.jar"
+          echo "Downloading Synthea ${VERSION} from: ${JAR_URL}"
+          curl -fsSL -o synthea-with-dependencies.jar "${JAR_URL}"
+          echo "JAR size: $(du -sh synthea-with-dependencies.jar | cut -f1)"
+
+      # ── 4. Run Synthea (CSV on, FHIR off) ───────────────────────────────────
+      - name: Run Synthea simulation
+        run: |
+          java -jar synthea-with-dependencies.jar \
+            -p "${{ github.event.inputs.population }}" \
+            -s "${{ github.event.inputs.seed }}" \
+            -m "${{ github.event.inputs.module }}" \
+            --exporter.csv.export=true \
+            --exporter.fhir.export=false \
+            --exporter.hospital.fhir.export=false \
+            --exporter.practitioner.fhir.export=false \
+            "${{ github.event.inputs.state }}"
+
+      # ── 5. Compute artifact name & zip CSV output ────────────────────────────
+      - name: Package CSV output
+        id: package
+        run: |
+          MODULE="${{ github.event.inputs.module }}"
+          POPULATION="${{ github.event.inputs.population }}"
+          SEED="${{ github.event.inputs.seed }}"
+          VERSION="${{ github.event.inputs.synthea_version }}"
+          OVERRIDE="${{ github.event.inputs.artifact_name }}"
+
+          if [ -n "${OVERRIDE}" ]; then
+            ARTIFACT_NAME="${OVERRIDE}"
+          else
+            ARTIFACT_NAME="synthea-${MODULE}-p${POPULATION}-s${SEED}-v${VERSION}"
+          fi
+
+          echo "artifact_name=${ARTIFACT_NAME}" >> "$GITHUB_OUTPUT"
+
+          CSV_DIR="output/csv"
+          ZIP_FILE="${ARTIFACT_NAME}.zip"
+
+          if [ ! -d "${CSV_DIR}" ]; then
+            echo "ERROR: ${CSV_DIR} not found – Synthea may not have produced CSV output."
+            ls -la output/ || true
+            exit 1
+          fi
+
+          echo "CSV files generated:"
+          ls -lh "${CSV_DIR}/"
+
+          # Zip with csv/ at the archive root (not output/csv/) for clean extraction
+          (cd output && zip -r "../${ZIP_FILE}" csv/)
+          echo "ZIP size: $(du -sh "${ZIP_FILE}" | cut -f1)"
+
+      # ── 6. Generate manifest.json ────────────────────────────────────────────
+      - name: Generate manifest.json
+        run: |
+          ARTIFACT_NAME="${{ steps.package.outputs.artifact_name }}"
+          CSV_DIR="output/csv"
+
+          # Count files and total data rows (header excluded) in a single loop
+          FILE_COUNT=0
+          ROW_COUNT=0
+          for f in "${CSV_DIR}"/*.csv; do
+            [ -f "$f" ] || continue
+            FILE_COUNT=$((FILE_COUNT + 1))
+            ROWS=$(tail -n +2 "$f" | wc -l | xargs)
+            ROW_COUNT=$((ROW_COUNT + ROWS))
+          done
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          GIT_SHA="${{ github.sha }}"
+
+          cat > manifest.json << EOF
+          {
+            "artifact_name": "${ARTIFACT_NAME}",
+            "synthea_version": "${{ github.event.inputs.synthea_version }}",
+            "module": "${{ github.event.inputs.module }}",
+            "population": ${{ github.event.inputs.population }},
+            "seed": ${{ github.event.inputs.seed }},
+            "state": "${{ github.event.inputs.state }}",
+            "git_sha": "${GIT_SHA}",
+            "generated_at": "${TIMESTAMP}",
+            "csv_file_count": ${FILE_COUNT},
+            "csv_total_data_rows": ${ROW_COUNT}
+          }
+          EOF
+
+          echo "=== manifest.json ==="
+          cat manifest.json
+
+      # ── 7. Upload CSV zip as artifact ────────────────────────────────────────
+      - name: Upload CSV dataset artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_name }}.zip
+          retention-days: 30
+
+      # ── 8. Upload manifest as artifact ──────────────────────────────────────
+      - name: Upload manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}-manifest
+          path: manifest.json
+          retention-days: 30

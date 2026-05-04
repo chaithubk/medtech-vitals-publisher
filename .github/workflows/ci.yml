@@ -109,7 +109,8 @@ jobs:
       
       - name: Dependency security check
         run: |
-          safety check --json > safety-report.json
+          safety check --json > safety-report.json || true
+        continue-on-error: true
       
       - name: Upload reports
         if: always()

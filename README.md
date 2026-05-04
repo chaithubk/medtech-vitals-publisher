@@ -103,6 +103,54 @@ python -m src.simulator --scenario healthy
 - The simplest container setup is to use `git@github.com:owner/repo.git` and let
   the forwarded agent provide the right key.
 
+## Generating Synthea Datasets (CI Artifact)
+
+The workflow `.github/workflows/generate-synthea-dataset.yml` downloads a
+pinned [Synthea](https://github.com/synthetichealth/synthea) release, generates
+a synthetic patient population exported as CSV files, and uploads the result as
+a downloadable GitHub Actions artifact — no local Java or Synthea install
+required.
+
+### Triggering the workflow
+
+1. Go to **Actions → Generate Synthea Dataset** in the GitHub UI.
+2. Click **Run workflow** and fill in the inputs:
+
+| Input | Default | Description |
+|---|---|---|
+| `synthea_version` | `3.3.0` | Synthea release tag (pinned for reproducibility) |
+| `module` | `sepsis` | Clinical module to simulate |
+| `population` | `10` | Number of synthetic patients |
+| `seed` | `42` | Random seed (same seed → same patients) |
+| `state` | `Massachusetts` | US state for demographic data |
+| `artifact_name` | _(auto)_ | Override artifact name; auto-computed as `synthea-<module>-p<pop>-s<seed>-v<version>` |
+
+3. When the run completes, download the **zip artifact** (CSV tables) and the
+   **manifest artifact** (`manifest.json`) from the run's **Artifacts** section.
+
+### Using the downloaded dataset
+
+Unzip the artifact, then point the vitals publisher at the CSV directory with
+`--synthea-path`:
+
+```bash
+unzip synthea-sepsis-p10-s42-v3.3.0.zip -d synthea_data/
+
+python -m src.simulator \
+  --scenario synthea \
+  --synthea-path synthea_data/csv
+```
+
+The `manifest.json` file records the exact inputs, git SHA, generation
+timestamp, file count, and total data-row count so the dataset is fully
+traceable and reproducible.
+
+### Keeping artifacts small
+
+The default population of **10** keeps artifact size under ~1 MB and the job
+runtime under 2 minutes. Increase `population` for more representative datasets
+when needed (e.g. 1000 for load testing).
+
 ## Running the Simulator
 
 ```bash

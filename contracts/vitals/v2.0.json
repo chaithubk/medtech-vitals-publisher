@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/v2.0.json",
+  "title": "MedTech Vitals Telemetry Payload v2.0",
+  "description": "JSON Schema for the v2.0 vitals telemetry payload published on MQTT topic medtech/vitals/latest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "patient_id",
+    "scenario",
+    "scenario_stage",
+    "timestamp",
+    "hr",
+    "bp_sys",
+    "bp_dia",
+    "o2_sat",
+    "temperature",
+    "respiratory_rate",
+    "wbc",
+    "lactate",
+    "sirs_score",
+    "qsofa_score",
+    "sepsis_stage",
+    "sepsis_onset_ts",
+    "quality",
+    "source"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "2.0",
+      "description": "Schema version. Must be exactly '2.0' for this contract."
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Unique identifier for the patient or simulated patient record."
+    },
+    "scenario": {
+      "type": "string",
+      "enum": ["healthy", "sepsis", "critical"],
+      "description": "The clinical scenario being simulated or observed."
+    },
+    "scenario_stage": {
+      "type": "string",
+      "enum": ["healthy", "pre_sepsis", "sepsis_onset", "sepsis", "septic_shock"],
+      "description": "Current stage within the scenario trajectory."
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "Unix timestamp in milliseconds (ms epoch) when the vitals sample was taken.",
+      "minimum": 0
+    },
+    "hr": {
+      "type": "number",
+      "description": "Heart rate in beats per minute (bpm).",
+      "minimum": 0
+    },
+    "bp_sys": {
+      "type": "number",
+      "description": "Systolic blood pressure in mmHg.",
+      "minimum": 0
+    },
+    "bp_dia": {
+      "type": "number",
+      "description": "Diastolic blood pressure in mmHg.",
+      "minimum": 0
+    },
+    "o2_sat": {
+      "type": "number",
+      "description": "Peripheral oxygen saturation as a percentage (SpO2, %).",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "temperature": {
+      "type": "number",
+      "description": "Body temperature in degrees Celsius (°C)."
+    },
+    "respiratory_rate": {
+      "type": "number",
+      "description": "Respiratory rate in breaths per minute (breaths/min).",
+      "minimum": 0
+    },
+    "wbc": {
+      "type": "number",
+      "description": "White blood cell count in thousands per microliter (10³/µL).",
+      "minimum": 0
+    },
+    "lactate": {
+      "type": "number",
+      "description": "Blood lactate level in millimoles per litre (mmol/L).",
+      "minimum": 0
+    },
+    "sirs_score": {
+      "type": "integer",
+      "description": "Systemic Inflammatory Response Syndrome (SIRS) score (0–4).",
+      "minimum": 0,
+      "maximum": 4
+    },
+    "qsofa_score": {
+      "type": "integer",
+      "description": "Quick Sequential Organ Failure Assessment (qSOFA) score (0–3).",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "sepsis_stage": {
+      "type": "string",
+      "enum": ["none", "sirs", "sepsis", "septic_shock"],
+      "description": "Algorithmic sepsis classification derived from vitals and lab values."
+    },
+    "sepsis_onset_ts": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "description": "Unix timestamp in milliseconds when sepsis onset was detected.",
+          "minimum": 0
+        },
+        {
+          "type": "null",
+          "description": "Null when sepsis has not yet been detected."
+        }
+      ],
+      "description": "Unix timestamp in milliseconds when sepsis onset was first detected, or null if not yet detected."
+    },
+    "quality": {
+      "type": "string",
+      "description": "Signal quality indicator for the vitals sample (e.g. 'good', 'degraded', 'poor')."
+    },
+    "source": {
+      "type": "string",
+      "description": "Identifier for the data source or device that produced this payload (e.g. 'synthea-simulator', 'bedside-monitor-A')."
+    }
+  }
+}

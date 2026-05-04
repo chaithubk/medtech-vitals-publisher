@@ -17,8 +17,8 @@ def test_main_callable():
 
 def test_v2_modules_importable():
     """Test that v2 schema, progression, and synthea_bridge modules import cleanly."""
-    from src.schema import SCHEMA_VERSION, VitalsPayloadV2, build_payload
     from src.progression import ProgressionEngine
+    from src.schema import SCHEMA_VERSION, build_payload
     from src.synthea_bridge import SyntheaBridge
 
     assert SCHEMA_VERSION == "2.0"
@@ -44,7 +44,7 @@ def test_v2_payload_smoke():
         respiratory_rate=22.0,
         wbc=14.0,
         lactate=2.2,
-        quality=85,
+        quality="degraded",
         source="simulator",
     )
     d = p.to_dict()
@@ -53,4 +53,3 @@ def test_v2_payload_smoke():
     assert isinstance(d["sirs_score"], int)
     assert isinstance(d["qsofa_score"], int)
     assert d["sepsis_stage"] in {"none", "sirs", "sepsis", "septic_shock"}
-

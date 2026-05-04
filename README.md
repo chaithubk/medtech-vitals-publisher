@@ -82,6 +82,14 @@ python -m pytest -q
 python -m src --scenario healthy
 ```
 
+### 6. Local CI parity checks
+
+Run all CI-equivalent local checks (with safe auto-fixes) using:
+
+```bash
+bash tools/check_ci.sh
+```
+
 ## Generating Synthea Datasets (CI Artifact)
 
 The workflow `.github/workflows/generate-synthea-dataset.yml` downloads a
@@ -218,7 +226,52 @@ python -m src --scenario sepsis --synthea-path data/synthea/csv --patient-id <uu
 | `PUBLISH_INTERVAL_S` | `10`        | Seconds between published readings                 |
 | `LOGLEVEL`           | `INFO`      | Logging verbosity                                  |
 
-## v2 MQTT Payload Schema
+## Telemetry Contract
+
+The canonical v2 MQTT payload schema is centrally owned in
+**[chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract)**.
+
+This repository vendors a pinned local copy for reproducible builds and offline
+environments:
+
+| File | Purpose |
+|------|---------|
+| `contracts/vitals/v2.0.json` | Vendored JSON Schema (source of truth for validation) |
+| `contracts/VITALS_CONTRACT_VERSION.txt` | Pinned contract tag (currently `v2.0.0`) |
+| `contracts/README.md` | Update procedure and policy |
+
+> **Policy:** Every v2 payload published by this service must validate against
+> `contracts/vitals/v2.0.json`.  CI enforces this via
+> `tests/test_contract_schema_v2.py`.
+
+### Updating the vendored schema
+
+**Option A — GitHub Actions (recommended):**
+
+1. Go to **Actions → Vendor Telemetry Contract** in this repository.
+2. Click **Run workflow**, optionally specify a tag (defaults to latest).
+3. Review and merge the automatically opened PR.
+
+**Option B — Local script:**
+
+```bash
+# Vendor the currently pinned tag
+python scripts/vendor_telemetry_contract.py
+
+# Vendor a specific tag
+python scripts/vendor_telemetry_contract.py --tag v2.1.0
+
+# Auto-resolve and vendor the latest tag
+python scripts/vendor_telemetry_contract.py --tag latest
+```
+
+### Drift detection
+
+A scheduled workflow (`.github/workflows/contract-drift-check.yml`) runs daily
+and fails with a clear message when a newer tag exists in the central contract
+repo, prompting you to run the vendor workflow.
+
+
 
 All messages are published to `medtech/vitals/latest` as JSON.
 
@@ -241,7 +294,7 @@ All messages are published to `medtech/vitals/latest` as JSON.
   "qsofa_score": 2,
   "sepsis_stage": "septic_shock",
   "sepsis_onset_ts": 1712973480000,
-  "quality": 85,
+  "quality": "degraded",
   "source": "simulator"
 }
 ```
@@ -267,7 +320,7 @@ All messages are published to `medtech/vitals/latest` as JSON.
 | `qsofa_score`     | `integer`   | qSOFA score (0-3)                                               |
 | `sepsis_stage`    | `string`    | Classified stage: `none`, `sirs`, `sepsis`, `septic_shock`      |
 | `sepsis_onset_ts` | `int/null`  | ms-epoch when sepsis first detected; `null` if not yet          |
-| `quality`         | `integer`   | Sensor quality estimate (0-100)                                 |
+| `quality`         | `string`    | Signal quality: `"good"`, `"degraded"`, or `"poor"`            |
 | `source`          | `string`    | Data source: `"simulator"` (built-in engine) or `"synthea"` (Synthea bridge) |
 
 ### Progression Stages

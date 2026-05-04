@@ -41,7 +41,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (12.0, 18.0),
         "wbc": (4.5, 10.0),
         "lactate": (0.5, 1.5),
-        "quality": 95,
+        "quality": "good",
     },
     "pre_sepsis": {
         "hr": (85.0, 105.0),
@@ -52,7 +52,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (16.0, 22.0),
         "wbc": (10.0, 15.0),
         "lactate": (1.0, 2.0),
-        "quality": 90,
+        "quality": "good",
     },
     "sepsis_onset": {
         "hr": (100.0, 120.0),
@@ -63,7 +63,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (20.0, 26.0),
         "wbc": (13.0, 18.0),
         "lactate": (1.5, 3.0),
-        "quality": 85,
+        "quality": "degraded",
     },
     "sepsis": {
         "hr": (115.0, 135.0),
@@ -74,7 +74,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (24.0, 30.0),
         "wbc": (15.0, 22.0),
         "lactate": (2.5, 4.5),
-        "quality": 80,
+        "quality": "degraded",
     },
     "septic_shock": {
         "hr": (130.0, 155.0),
@@ -85,7 +85,7 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (28.0, 38.0),
         "wbc": (18.0, 30.0),
         "lactate": (4.0, 8.0),
-        "quality": 70,
+        "quality": "poor",
     },
 }
 
@@ -93,10 +93,10 @@ _VALID_STAGES = list(_STAGE_PARAMS.keys())
 
 # Default progression order for sepsis scenario
 _SEPSIS_PROGRESSION: List[Tuple[str, int]] = [
-    ("pre_sepsis", 6),       # 6 ticks at pre-sepsis
-    ("sepsis_onset", 8),     # 8 ticks at onset
-    ("sepsis", 10),          # 10 ticks at sepsis
-    ("septic_shock", -1),    # -1 = repeat indefinitely
+    ("pre_sepsis", 6),  # 6 ticks at pre-sepsis
+    ("sepsis_onset", 8),  # 8 ticks at onset
+    ("sepsis", 10),  # 10 ticks at sepsis
+    ("septic_shock", -1),  # -1 = repeat indefinitely
 ]
 
 
@@ -161,7 +161,8 @@ class ProgressionEngine:
 
         self.scenario = scenario
         self.patient_id = patient_id
-        self._rng = random.Random(seed)
+        # Deterministic RNG is required for reproducible simulation/test replay.
+        self._rng = random.Random(seed)  # nosec B311
         self._tick = 0
         self._sepsis_onset_ts: Optional[int] = None
 
@@ -170,9 +171,7 @@ class ProgressionEngine:
             self._progression: List[Tuple[str, int]] = [("healthy", -1)]
         elif scenario == "sepsis":
             if ticks_per_stage:
-                self._progression = [
-                    (s, ticks_per_stage.get(s, t)) for s, t in _SEPSIS_PROGRESSION
-                ]
+                self._progression = [(s, ticks_per_stage.get(s, t)) for s, t in _SEPSIS_PROGRESSION]
             else:
                 self._progression = list(_SEPSIS_PROGRESSION)
         else:  # critical – jump straight to septic_shock
@@ -311,7 +310,9 @@ class ProgressionEngine:
             "sepsis_onset_ts": self._sepsis_onset_ts,
         }
 
-    def generate_sequence(self, n: int, start_ts: Optional[int] = None, interval_ms: int = 10_000) -> List[Dict[str, Any]]:
+    def generate_sequence(
+        self, n: int, start_ts: Optional[int] = None, interval_ms: int = 10_000
+    ) -> List[Dict[str, Any]]:
         """Generate *n* consecutive readings spaced *interval_ms* apart.
 
         Useful for offline simulation (e.g. Synthea bridge validation).

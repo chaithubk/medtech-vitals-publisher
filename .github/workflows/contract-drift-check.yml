@@ -1,0 +1,64 @@
+name: Contract Drift Check
+
+on:
+  schedule:
+    # Run daily at 08:00 UTC
+    - cron: "0 8 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  drift-check:
+    name: Check for new telemetry contract tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned contract version
+        id: pinned
+        run: |
+          VERSION=$(cat contracts/VITALS_CONTRACT_VERSION.txt | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Pinned contract version: $VERSION"
+
+      - name: Fetch latest tag from medtech-telemetry-contract
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST=$(gh api repos/chaithubk/medtech-telemetry-contract/tags \
+            --jq '.[0].name' 2>/dev/null || echo "")
+          if [ -z "$LATEST" ]; then
+            echo "⚠️  Could not fetch tags from chaithubk/medtech-telemetry-contract."
+            echo "   Check that the repository exists and is accessible."
+            exit 1
+          fi
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "Latest contract tag:  $LATEST"
+
+      - name: Compare versions
+        env:
+          PINNED: ${{ steps.pinned.outputs.version }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+        run: |
+          echo "Pinned : $PINNED"
+          echo "Latest : $LATEST"
+          if [ "$PINNED" = "$LATEST" ]; then
+            echo "✅ Contract is up to date (pinned == latest: $PINNED)."
+          else
+            echo ""
+            echo "❌ Contract drift detected!"
+            echo ""
+            echo "   Current pin : $PINNED"
+            echo "   Latest tag  : $LATEST"
+            echo ""
+            echo "Action required:"
+            echo "  A new telemetry contract tag ($LATEST) is available."
+            echo "  To update the vendored schema, run the 'Vendor Telemetry Contract'"
+            echo "  workflow from the Actions tab (Actions → Vendor Telemetry Contract"
+            echo "  → Run workflow) and merge the resulting PR."
+            echo ""
+            echo "  Alternatively, run locally:"
+            echo "    python scripts/vendor_telemetry_contract.py --tag $LATEST"
+            exit 1
+          fi

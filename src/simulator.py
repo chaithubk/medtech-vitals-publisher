@@ -125,8 +125,8 @@ class MQTTClient:
         """Best-effort cleanup – stop the background network loop on GC."""
         try:
             self._stop_loop()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Suppressed MQTT cleanup exception during GC: %s", exc)
 
     # ------------------------------------------------------------------
     # Public API
@@ -286,7 +286,7 @@ class ScenarioFactory:
         Returns:
             Dict with healthy vital sign readings.
         """
-        return ScenarioFactory._generate("healthy", random.Random(seed))
+        return ScenarioFactory._generate("healthy", random.Random(seed))  # nosec B311
 
     @staticmethod
     def sepsis(seed: Optional[int] = None) -> Dict[str, Any]:
@@ -298,7 +298,7 @@ class ScenarioFactory:
         Returns:
             Dict with sepsis vital sign readings.
         """
-        return ScenarioFactory._generate("sepsis", random.Random(seed))
+        return ScenarioFactory._generate("sepsis", random.Random(seed))  # nosec B311
 
     @staticmethod
     def critical(seed: Optional[int] = None) -> Dict[str, Any]:
@@ -310,7 +310,7 @@ class ScenarioFactory:
         Returns:
             Dict with critical vital sign readings.
         """
-        return ScenarioFactory._generate("critical", random.Random(seed))
+        return ScenarioFactory._generate("critical", random.Random(seed))  # nosec B311
 
 
 # ---------------------------------------------------------------------------
@@ -370,8 +370,8 @@ class VitalsSimulator:
         self._running = False
         self._publish_count = 0
         self._connect_count = 0
-        # Legacy RNG kept so ScenarioFactory static methods still work in tests
-        self._rng = random.Random(seed)
+        # Legacy deterministic RNG kept so ScenarioFactory static methods still work in tests.
+        self._rng = random.Random(seed)  # nosec B311
         self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
 
         # Source label embedded in every published payload: "simulator" by default,
@@ -445,10 +445,17 @@ class VitalsSimulator:
                 if pid is None:
                     pid = available[0] if available else None
                 if pid:
-                    logger.info("Using Synthea data source: path=%s, patient=%s", synthea_path, pid)
+                    logger.info(
+                        "Using Synthea data source: path=%s, patient=%s",
+                        synthea_path,
+                        pid,
+                    )
                     self._source = "synthea"
                     return bridge.iter_patient(pid, fallback_engine=engine, loop=True)
-                logger.warning("No patients found in Synthea path '%s'; using progression engine", synthea_path)
+                logger.warning(
+                    "No patients found in Synthea path '%s'; using progression engine",
+                    synthea_path,
+                )
             except (FileNotFoundError, OSError) as exc:
                 logger.warning("Synthea bridge unavailable (%s); using progression engine", exc)
 

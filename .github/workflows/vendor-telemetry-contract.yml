@@ -1,0 +1,108 @@
+name: Vendor Telemetry Contract
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >
+          Contract repo tag to vendor (e.g. v2.1.0).
+          Leave blank to use the latest published tag automatically.
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  vendor:
+    name: Vendor schema and open PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Resolve target tag
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+            echo "Using requested tag: $INPUT_TAG"
+          else
+            LATEST=$(gh api repos/chaithubk/medtech-telemetry-contract/tags \
+              --jq '.[0].name' 2>/dev/null || echo "")
+            if [ -z "$LATEST" ]; then
+              echo "❌ Could not resolve latest tag from chaithubk/medtech-telemetry-contract."
+              exit 1
+            fi
+            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+            echo "Resolved latest tag: $LATEST"
+          fi
+
+      - name: Run vendoring script
+        run: |
+          python scripts/vendor_telemetry_contract.py --tag "${{ steps.resolve.outputs.tag }}"
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes — schema is already up to date."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected:"
+            git diff --stat
+          fi
+
+      - name: Create branch, commit, and open PR
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          BRANCH="chore/vendor-telemetry-contract-${TAG}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add contracts/vitals/v2.0.json contracts/VITALS_CONTRACT_VERSION.txt
+          git commit -m "chore: vendor telemetry contract ${TAG}
+
+          Vendored contracts/vitals/v2.0.json from:
+          chaithubk/medtech-telemetry-contract@${TAG}
+
+          Updated contracts/VITALS_CONTRACT_VERSION.txt to ${TAG}."
+
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "chore: vendor telemetry contract ${TAG}" \
+            --body "## Automated contract update
+
+          This PR vendors the MedTech telemetry contract schema at tag **\`${TAG}\`** from
+          [chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract).
+
+          ### Changes
+          - \`contracts/vitals/v2.0.json\` — updated to \`${TAG}\`
+          - \`contracts/VITALS_CONTRACT_VERSION.txt\` — pinned to \`${TAG}\`
+
+          ### Checklist
+          - [ ] Review schema diff below for breaking changes
+          - [ ] Confirm CI (contract schema validation test) passes
+          - [ ] Merge when green
+
+          _Generated automatically by the **Vendor Telemetry Contract** workflow._" \
+            --base main \
+            --head "$BRANCH"
+
+      - name: No-op summary
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "✅ Contract already at ${{ steps.resolve.outputs.tag }} — no PR needed."

@@ -384,9 +384,8 @@ class VitalsSimulator:
         )
 
         logger.info(
-            "VitalsSimulator v2 initialised: scenario=%s, patient_id=%s, broker=%s:%d, seed=%d",
+            "VitalsSimulator v2 initialised: scenario=%s, broker=%s:%d, seed=%d",
             scenario,
-            patient_id,
             broker_host,
             broker_port,
             seed,
@@ -430,7 +429,7 @@ class VitalsSimulator:
                 available = bridge.list_patients()
                 pid = patient_id if patient_id in available else (available[0] if available else None)
                 if pid:
-                    logger.info("Using Synthea data source: patient=%s, path=%s", pid, synthea_path)
+                    logger.info("Using Synthea data source: path=%s", synthea_path)
                     return bridge.iter_patient(pid, scenario=scenario, fallback_engine=engine, loop=True)
                 logger.warning("No patients found in Synthea path '%s'; using progression engine", synthea_path)
             except (FileNotFoundError, OSError) as exc:

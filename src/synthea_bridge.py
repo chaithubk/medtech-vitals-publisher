@@ -189,7 +189,7 @@ class SyntheaBridge:
         raw_rows = self._read_patient_observations(patient_id)
         if not raw_rows:
             logger.warning(
-                "No observations found for patient '%s' in %s", patient_id, self._obs_path
+                "No observations found for requested patient in %s", self._obs_path
             )
             return []
 
@@ -247,7 +247,7 @@ class SyntheaBridge:
         """
         readings = self.load_patient(patient_id, scenario=scenario, fallback_engine=fallback_engine)
         if not readings:
-            logger.warning("No readings for patient '%s'; yielding nothing.", patient_id)
+            logger.warning("No readings for requested patient; yielding nothing.")
             return
 
         now_ms = int(time.time() * 1000)

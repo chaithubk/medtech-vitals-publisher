@@ -12,6 +12,26 @@ from src.synthea_bridge import (
     _parse_date_to_ms,
 )
 
+# Conditions CSV header / rows used in tests
+_CONDITIONS_HEADER = ["START", "STOP", "PATIENT", "ENCOUNTER", "SYSTEM", "CODE", "DESCRIPTION"]
+
+
+def _write_conditions_csv(path: Path, rows: list) -> None:
+    """Write a minimal conditions.csv to *path*."""
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(_CONDITIONS_HEADER)
+        writer.writerows(rows)
+
+
+def _make_synthea_dir_with_conditions(obs_rows=None, cond_rows=None) -> tempfile.TemporaryDirectory:
+    """Create a temp Synthea dir with both observations.csv and conditions.csv."""
+    tmpdir = tempfile.TemporaryDirectory()
+    _write_observations_csv(Path(tmpdir.name) / "observations.csv", obs_rows)
+    if cond_rows is not None:
+        _write_conditions_csv(Path(tmpdir.name) / "conditions.csv", cond_rows)
+    return tmpdir
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -302,3 +322,118 @@ def test_default_vitals_structure():
     defaults = _default_vitals(ts_ms=0)
     assert expected_keys == set(defaults.keys())
     assert defaults["timestamp"] == 0
+
+
+# ---------------------------------------------------------------------------
+# conditions.csv — list_sepsis_patients_from_conditions / get_sepsis_onset_ts
+# ---------------------------------------------------------------------------
+
+
+class TestConditionsCSV:
+    """Tests for conditions.csv-backed sepsis detection methods."""
+
+    _SEPSIS_ROWS = [
+        ["2012-04-18", "", "patient-sep", "enc-1", "SNOMED-CT", "91302008", "Sepsis (disorder)"],
+    ]
+    _OTHER_ROWS = [
+        ["2020-01-01", "", "patient-flu", "enc-2", "SNOMED-CT", "6142004", "Influenza (disorder)"],
+    ]
+
+    def test_list_sepsis_patients_from_conditions_finds_patient(self):
+        """list_sepsis_patients_from_conditions() returns sepsis patient IDs."""
+        with _make_synthea_dir_with_conditions(cond_rows=self._SEPSIS_ROWS + self._OTHER_ROWS) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            result = bridge.list_sepsis_patients_from_conditions()
+            assert "patient-sep" in result
+            assert "patient-flu" not in result
+
+    def test_list_sepsis_patients_from_conditions_no_file(self):
+        """Returns [] when conditions.csv does not exist."""
+        with _make_synthea_dir() as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            result = bridge.list_sepsis_patients_from_conditions()
+            assert result == []
+
+    def test_list_sepsis_patients_merges_conditions(self):
+        """list_sepsis_patients() includes patients from conditions.csv."""
+        # Use only healthy-vitals observations so the heuristic alone returns nothing
+        healthy_obs = [
+            ["2023-01-01T08:00:00", "healthy-P", "enc-h", "8867-4", "Heart rate", "72", "/min", "numeric"],
+        ]
+        with _make_synthea_dir_with_conditions(
+            obs_rows=healthy_obs, cond_rows=self._SEPSIS_ROWS
+        ) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            result = bridge.list_sepsis_patients()
+            assert "patient-sep" in result
+            assert "healthy-P" not in result
+
+    def test_get_sepsis_onset_ts_returns_ms(self):
+        """get_sepsis_onset_ts() returns a valid ms timestamp for a known patient."""
+        with _make_synthea_dir_with_conditions(cond_rows=self._SEPSIS_ROWS) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            ts = bridge.get_sepsis_onset_ts("patient-sep")
+            # 2012-04-18 UTC = 1334707200000 ms
+            assert ts == 1334707200000
+
+    def test_get_sepsis_onset_ts_unknown_patient_returns_none(self):
+        """get_sepsis_onset_ts() returns None for a patient not in conditions.csv."""
+        with _make_synthea_dir_with_conditions(cond_rows=self._SEPSIS_ROWS) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            assert bridge.get_sepsis_onset_ts("unknown-patient") is None
+
+    def test_get_sepsis_onset_ts_no_file_returns_none(self):
+        """get_sepsis_onset_ts() returns None when conditions.csv is absent."""
+        with _make_synthea_dir() as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            assert bridge.get_sepsis_onset_ts("any-patient") is None
+
+
+# ---------------------------------------------------------------------------
+# iter_patient — engine fallback when no LOINC observations
+# ---------------------------------------------------------------------------
+
+
+class TestIterPatientEngineFallback:
+    """iter_patient() must stream from fallback engine when no LOINC obs exist."""
+
+    def _make_engine(self):
+        from src.progression import ProgressionEngine
+        return ProgressionEngine(scenario="sepsis", seed=42)
+
+    def test_iter_patient_no_loinc_obs_loop_true_yields(self):
+        """When observations are all non-LOINC, loop=True yields from engine."""
+        # observations.csv contains only QALY rows (no LOINC vitals)
+        qaly_rows = [
+            ["2023-01-01T08:00:00", "patient-qaly", "enc-1", "QALY", "QALY", "20.0", "a", "numeric"],
+        ]
+        with _make_synthea_dir(qaly_rows) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            engine = self._make_engine()
+            gen = bridge.iter_patient("patient-qaly", fallback_engine=engine, loop=True)
+            readings = [next(gen) for _ in range(5)]
+            assert len(readings) == 5
+            for r in readings:
+                assert "hr" in r
+                assert "bp_sys" in r
+                assert "scenario_stage" in r
+
+    def test_iter_patient_no_loinc_obs_loop_false_yields_nothing(self):
+        """When no LOINC obs and loop=False, yields nothing (no engine fallback)."""
+        qaly_rows = [
+            ["2023-01-01T08:00:00", "patient-qaly", "enc-1", "QALY", "QALY", "20.0", "a", "numeric"],
+        ]
+        with _make_synthea_dir(qaly_rows) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            result = list(bridge.iter_patient("patient-qaly", loop=False))
+            assert result == []
+
+    def test_iter_patient_no_loinc_no_engine_loop_true_yields_nothing(self):
+        """When no LOINC obs and no fallback engine, yields nothing even with loop=True."""
+        qaly_rows = [
+            ["2023-01-01T08:00:00", "patient-qaly", "enc-1", "QALY", "QALY", "20.0", "a", "numeric"],
+        ]
+        with _make_synthea_dir(qaly_rows) as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            result = list(bridge.iter_patient("patient-qaly", fallback_engine=None, loop=False))
+            assert result == []

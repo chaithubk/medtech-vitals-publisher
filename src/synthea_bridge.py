@@ -83,8 +83,8 @@ _LOINC_MAP: Dict[str, Tuple[str, float, float]] = {
     "59408-5": ("o2_sat", 1.0, 98.0),
     "8310-5": ("temperature", 1.0, 37.0),
     "9279-1": ("respiratory_rate", 1.0, 16.0),
-    "6690-2": ("wbc", 1.0, 7.5),       # ×10³/µL
-    "2524-7": ("lactate", 1.0, 1.0),   # mmol/L
+    "6690-2": ("wbc", 1.0, 7.5),  # ×10³/µL
+    "2524-7": ("lactate", 1.0, 1.0),  # mmol/L
 }
 
 # ---------------------------------------------------------------------------
@@ -111,6 +111,7 @@ class SyntheaBridge:
             raise FileNotFoundError(f"Synthea CSV directory not found: {csv_dir}")
 
         self._obs_path = self._dir / "observations.csv"
+        self._conditions_path = self._dir / "conditions.csv"
 
         if not self._obs_path.exists():
             raise FileNotFoundError(f"observations.csv not found in {csv_dir}")
@@ -160,7 +161,56 @@ class SyntheaBridge:
                     candidates.add(pid)
                 elif code == "8310-5" and value > 38.5:
                     candidates.add(pid)
+        # Also include patients identified via conditions.csv (SNOMED 91302008)
+        candidates.update(self.list_sepsis_patients_from_conditions())
         return sorted(candidates)
+
+    def list_sepsis_patients_from_conditions(self) -> List[str]:
+        """Return patient IDs with a recorded Sepsis diagnosis in ``conditions.csv``.
+
+        Matches rows where ``CODE`` is SNOMED-CT ``91302008`` (Sepsis disorder).
+        Returns an empty list when ``conditions.csv`` is absent.
+
+        Returns:
+            Sorted list of patient UUID strings.
+        """
+        patients: set = set()
+        if not self._conditions_path.exists():
+            return []
+        with open(self._conditions_path, newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            for row in reader:
+                if row.get("CODE", "").strip() == "91302008":
+                    pid = row.get("PATIENT", "").strip()
+                    if pid:
+                        patients.add(pid)
+        return sorted(patients)
+
+    def get_sepsis_onset_ts(self, patient_id: str) -> Optional[int]:
+        """Return the sepsis onset timestamp (ms UTC) from ``conditions.csv``.
+
+        Looks for SNOMED-CT code ``91302008`` (Sepsis disorder) for the given
+        patient and converts the ``START`` date to a millisecond epoch value.
+
+        Args:
+            patient_id: Synthea patient UUID.
+
+        Returns:
+            Millisecond epoch timestamp, or ``None`` when not found.
+        """
+        if not self._conditions_path.exists():
+            return None
+        with open(self._conditions_path, newline="", encoding="utf-8") as fh:
+            reader = csv.DictReader(fh)
+            for row in reader:
+                if (
+                    row.get("CODE", "").strip() == "91302008"
+                    and row.get("PATIENT", "").strip() == patient_id
+                ):
+                    date_str = row.get("START", "").strip()
+                    if date_str:
+                        return _parse_date_to_ms(date_str)
+        return None
 
     def load_patient(
         self,
@@ -242,7 +292,17 @@ class SyntheaBridge:
         """
         readings = self.load_patient(patient_id, fallback_engine=fallback_engine)
         if not readings:
-            logger.warning("No readings for requested patient; yielding nothing.")
+            if fallback_engine is not None and loop:
+                logger.warning(
+                    "No LOINC observations for patient '%s'; streaming from progression engine.",
+                    patient_id,
+                )
+                while True:
+                    yield fallback_engine.next_reading()
+            else:
+                logger.warning(
+                    "No readings for patient '%s'; yielding nothing.", patient_id
+                )
             return
 
         # Compute the interval to advance timestamps on each loop cycle.
@@ -262,7 +322,9 @@ class SyntheaBridge:
 
         while True:
             for r in readings:
-                anchored_ts = now_ms + (r["timestamp"] - base_ts) + cycle * loop_offset_ms
+                anchored_ts = (
+                    now_ms + (r["timestamp"] - base_ts) + cycle * loop_offset_ms
+                )
                 yield {**r, "timestamp": anchored_ts}
             if not loop:
                 break
@@ -328,7 +390,7 @@ def _parse_date_to_ms(date_str: str) -> int:
     Returns:
         Integer milliseconds since Unix epoch (UTC).
     """
-    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
             dt = datetime.datetime.strptime(date_str, fmt).replace(
                 tzinfo=datetime.timezone.utc

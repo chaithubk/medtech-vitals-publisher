@@ -116,13 +116,65 @@ Unzip the artifact, then point the vitals publisher at the CSV directory with
 unzip synthea-sepsis-p10-s42-v3.3.0.zip -d synthea_data/
 
 python -m src.simulator \
-  --scenario synthea \
+  --scenario sepsis \
   --synthea-path synthea_data/csv
 ```
 
 The `manifest.json` file records the exact inputs, git SHA, generation
 timestamp, file count, and total data-row count so the dataset is fully
 traceable and reproducible.
+
+### Demo Dataset In This Repo
+
+The checked-in demo dataset under `data/synthea/demo/csv` is intentionally
+trimmed for fast local runs and tests. It currently keeps only:
+
+- `observations.csv`
+- `conditions.csv`
+- `patients.csv`
+
+Current improvements in the demo data:
+
+- Seeded LOINC vital-sign rows for the sepsis patient
+  (`79590754-4679-dafd-8aab-103706580fff`).
+- `conditions.csv` still contains SNOMED-CT `91302008` for sepsis onset.
+- `manifest.json` reflects the trimmed file count and row totals.
+
+### `.env.demo` (What It Is For)
+
+`.env.demo` is a convenience env preset for running the repo demo quickly with
+the bundled dataset and known sepsis patient. It is optional and not required
+for runtime.
+
+Load it and run:
+
+```bash
+set -a; . ./.env.demo; set +a
+python -m src --scenario sepsis
+```
+
+Equivalent explicit CLI command (without `.env.demo`):
+
+```bash
+python -m src \
+  --scenario sepsis \
+  --synthea-path data/synthea/demo/csv \
+  --patient-id 79590754-4679-dafd-8aab-103706580fff \
+  --seed 42 \
+  --interval 5
+```
+
+### `.env.demo` In CI/CD
+
+Current GitHub Actions workflows do **not** load or source `.env.demo`.
+
+- CI tests/lint/build: `.github/workflows/ci.yml`
+- Docker PR build: `.github/workflows/docker-build.yml`
+- Dataset generator: `.github/workflows/generate-synthea-dataset.yml`
+- Release pipeline: `.github/workflows/release.yml`
+
+If you want CI to run with this preset, add an explicit step to source
+`.env.demo` in the target workflow job.
 
 ### Keeping artifacts small
 

@@ -429,11 +429,23 @@ class VitalsSimulator:
         if synthea_path:
             try:
                 bridge = SyntheaBridge(synthea_path)
-                # Use patient_id directly; fall back to first patient if not found
                 available = bridge.list_patients()
-                pid = patient_id if patient_id in available else (available[0] if available else None)
+                pid: Optional[str] = None
+                if patient_id in available:
+                    # Caller supplied an explicit, valid Synthea patient UUID
+                    pid = patient_id
+                elif scenario == "sepsis":
+                    # Auto-select the best candidate: prefer patients with a confirmed
+                    # Sepsis condition record, then fall back to vital-sign heuristics.
+                    sepsis_candidates = bridge.list_sepsis_patients()
+                    if sepsis_candidates:
+                        pid = sepsis_candidates[0]
+                        self.patient_id = pid
+                        logger.info("Auto-selected sepsis patient from Synthea dataset: %s", pid)
+                if pid is None:
+                    pid = available[0] if available else None
                 if pid:
-                    logger.info("Using Synthea data source: path=%s", synthea_path)
+                    logger.info("Using Synthea data source: path=%s, patient=%s", synthea_path, pid)
                     self._source = "synthea"
                     return bridge.iter_patient(pid, fallback_engine=engine, loop=True)
                 logger.warning("No patients found in Synthea path '%s'; using progression engine", synthea_path)

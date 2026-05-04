@@ -216,7 +216,7 @@ All messages are published to `medtech/vitals/latest` as JSON.
 | `sepsis_stage`    | `string`    | Classified stage: `none`, `sirs`, `sepsis`, `septic_shock`      |
 | `sepsis_onset_ts` | `int/null`  | ms-epoch when sepsis first detected; `null` if not yet          |
 | `quality`         | `integer`   | Sensor quality estimate (0-100)                                 |
-| `source`          | `string`    | Data source: `"simulator"` or patient UUID from Synthea         |
+| `source`          | `string`    | Data source: `"simulator"` (built-in engine) or `"synthea"` (Synthea bridge) |
 
 ### Progression Stages
 
@@ -226,7 +226,7 @@ All messages are published to `medtech/vitals/latest` as JSON.
 | `pre_sepsis`   | Mild drift — SIRS may be < 2                        |
 | `sepsis_onset` | Early deterioration — SIRS >= 2 starts here         |
 | `sepsis`       | Progressive decline — qSOFA >= 2                    |
-| `septic_shock` | Haemodynamic failure — MAP < 65 or lactate > 2      |
+| `septic_shock` | Haemodynamic failure — bp_sys < 65 mmHg or lactate > 2 mmol/L |
 
 ### Scoring Definitions
 

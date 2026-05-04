@@ -374,6 +374,10 @@ class VitalsSimulator:
         self._rng = random.Random(seed)
         self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
 
+        # Source label embedded in every published payload: "simulator" by default,
+        # overridden to "synthea" when the Synthea bridge is active.
+        self._source: str = "simulator"
+
         # Build the v2 reading source iterator
         self._reading_iter: Iterator[Dict[str, Any]] = self._build_source(
             scenario=scenario,
@@ -430,7 +434,8 @@ class VitalsSimulator:
                 pid = patient_id if patient_id in available else (available[0] if available else None)
                 if pid:
                     logger.info("Using Synthea data source: path=%s", synthea_path)
-                    return bridge.iter_patient(pid, scenario=scenario, fallback_engine=engine, loop=True)
+                    self._source = "synthea"
+                    return bridge.iter_patient(pid, fallback_engine=engine, loop=True)
                 logger.warning("No patients found in Synthea path '%s'; using progression engine", synthea_path)
             except (FileNotFoundError, OSError) as exc:
                 logger.warning("Synthea bridge unavailable (%s); using progression engine", exc)
@@ -489,7 +494,7 @@ class VitalsSimulator:
             wbc=raw["wbc"],
             lactate=raw["lactate"],
             quality=raw["quality"],
-            source="simulator",
+            source=self._source,
             sepsis_onset_ts=raw.get("sepsis_onset_ts"),
         )
         return payload.to_dict()

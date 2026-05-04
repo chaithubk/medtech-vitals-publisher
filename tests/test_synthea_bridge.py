@@ -1,11 +1,8 @@
 """Unit tests for src.synthea_bridge — Synthea CSV/FHIR bridge."""
 
 import csv
-import io
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -237,6 +234,20 @@ class TestIterPatient:
             readings = list(bridge.iter_patient("ghost-patient", loop=False))
             assert readings == []
 
+    def test_iter_patient_timestamps_monotonic_on_loop(self):
+        """Timestamps are strictly increasing across loop boundaries (loop=True)."""
+        with _make_synthea_dir() as tmpdir:
+            bridge = SyntheaBridge(tmpdir)
+            gen = bridge.iter_patient("patient-A", loop=True)
+            # Collect enough readings to span more than one full loop cycle (2 readings per cycle)
+            all_readings = [next(gen) for _ in range(6)]
+            timestamps = [r["timestamp"] for r in all_readings]
+            # Every timestamp must be strictly greater than the previous
+            for i in range(1, len(timestamps)):
+                assert timestamps[i] > timestamps[i - 1], (
+                    f"timestamp[{i}]={timestamps[i]} not > timestamp[{i-1}]={timestamps[i-1]}"
+                )
+
 
 # ---------------------------------------------------------------------------
 # _parse_date_to_ms
@@ -269,6 +280,12 @@ class TestParseDateToMs:
         """Returned value is milliseconds (> 1e12 for any date after ~2001)."""
         ts = _parse_date_to_ms("2023-01-01T00:00:00")
         assert ts > 1_000_000_000_000  # > 1 trillion → definitely ms, not seconds
+
+    def test_utc_reproducibility(self):
+        """Same date string always yields the same ms value (UTC, not local time)."""
+        # 2023-01-01T00:00:00 UTC = 1_672_531_200_000 ms
+        ts = _parse_date_to_ms("2023-01-01T00:00:00")
+        assert ts == 1_672_531_200_000, f"Expected 1_672_531_200_000 (UTC), got {ts}"
 
 
 # ---------------------------------------------------------------------------

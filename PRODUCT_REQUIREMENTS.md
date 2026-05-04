@@ -29,7 +29,7 @@ simulates a patient journey through:
 | `pre_sepsis`   | Subtle infection signs, SIRS < 2                            |
 | `sepsis_onset` | SIRS >= 2, body temperature elevated, HR rising             |
 | `sepsis`       | qSOFA >= 2, multi-organ dysfunction beginning               |
-| `septic_shock` | Refractory hypotension (MAP < 65) or lactate > 2 mmol/L    |
+| `septic_shock` | Refractory hypotension (bp_sys < 65 mmHg) or lactate > 2 mmol/L  |
 
 This enables realistic testing of the edge-analytics sepsis algorithm without
 live patient data.

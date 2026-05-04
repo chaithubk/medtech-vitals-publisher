@@ -63,8 +63,8 @@ Notes
 from __future__ import annotations
 
 import csv
+import datetime
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -87,8 +87,6 @@ _LOINC_MAP: Dict[str, Tuple[str, float, float]] = {
     "2524-7": ("lactate", 1.0, 1.0),   # mmol/L
 }
 
-_ALL_V2_VITALS = {"hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate", "wbc", "lactate"}
-
 # ---------------------------------------------------------------------------
 # SyntheaBridge
 # ---------------------------------------------------------------------------
@@ -99,7 +97,7 @@ class SyntheaBridge:
 
     Args:
         csv_dir: Path to the Synthea ``output/csv`` directory containing at
-                 least ``observations.csv`` and ``patients.csv``.
+                 least ``observations.csv``.
     """
 
     def __init__(self, csv_dir: str) -> None:
@@ -113,7 +111,6 @@ class SyntheaBridge:
             raise FileNotFoundError(f"Synthea CSV directory not found: {csv_dir}")
 
         self._obs_path = self._dir / "observations.csv"
-        self._patients_path = self._dir / "patients.csv"
 
         if not self._obs_path.exists():
             raise FileNotFoundError(f"observations.csv not found in {csv_dir}")
@@ -168,19 +165,16 @@ class SyntheaBridge:
     def load_patient(
         self,
         patient_id: str,
-        scenario: str = "sepsis",
         fallback_engine: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """Load all vital observations for a patient and return as v2-compatible dicts.
 
-        Rows are grouped by encounter then by timestamp.  Missing v2 fields are
-        filled in from *fallback_engine* (a
-        :class:`~src.progression.ProgressionEngine`) if provided, or set to
-        sensible defaults.
+        Rows are grouped by timestamp.  Missing v2 fields are filled in from
+        *fallback_engine* (a :class:`~src.progression.ProgressionEngine`) if
+        provided, or set to sensible defaults.
 
         Args:
             patient_id: Synthea patient UUID or readable ID.
-            scenario: Scenario label embedded in the output dicts.
             fallback_engine: Optional ProgressionEngine used to fill missing fields.
 
         Returns:
@@ -230,39 +224,49 @@ class SyntheaBridge:
     def iter_patient(
         self,
         patient_id: str,
-        scenario: str = "sepsis",
         fallback_engine: Optional[Any] = None,
         loop: bool = True,
     ) -> Iterator[Dict[str, Any]]:
         """Yield vital readings for a patient, optionally looping indefinitely.
 
+        Timestamps are re-anchored to the current wall-clock on the first
+        iteration and advance monotonically on subsequent loops.
+
         Args:
             patient_id: Synthea patient UUID.
-            scenario: Scenario label for the readings.
             fallback_engine: Optional ProgressionEngine for missing fields.
             loop: When True, repeat the sequence indefinitely (for live publishing).
 
         Yields:
             Vital reading dicts (same structure as :meth:`load_patient` output).
         """
-        readings = self.load_patient(patient_id, scenario=scenario, fallback_engine=fallback_engine)
+        readings = self.load_patient(patient_id, fallback_engine=fallback_engine)
         if not readings:
             logger.warning("No readings for requested patient; yielding nothing.")
             return
 
+        # Compute the interval to advance timestamps on each loop cycle.
+        # Use the span of the sequence plus one average inter-reading gap so
+        # timestamps are strictly monotonic across loop boundaries.
+        if len(readings) > 1:
+            span_ms = readings[-1]["timestamp"] - readings[0]["timestamp"]
+            # Guard: if all readings share the same timestamp, fall back to default interval
+            avg_interval_ms = span_ms // (len(readings) - 1) if span_ms > 0 else 10_000
+            loop_offset_ms = max(10_000, span_ms + avg_interval_ms)
+        else:
+            loop_offset_ms = 10_000  # default 10 s when only one reading
+
         now_ms = int(time.time() * 1000)
-        # Re-anchor timestamps to current wall-clock, preserving intervals
-        if readings:
-            base = readings[0]["timestamp"]
-            readings = [
-                {**r, "timestamp": now_ms + (r["timestamp"] - base)}
-                for r in readings
-            ]
+        base_ts = readings[0]["timestamp"]
+        cycle = 0
 
         while True:
-            yield from readings
+            for r in readings:
+                anchored_ts = now_ms + (r["timestamp"] - base_ts) + cycle * loop_offset_ms
+                yield {**r, "timestamp": anchored_ts}
             if not loop:
                 break
+            cycle += 1
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -312,21 +316,23 @@ class SyntheaBridge:
 
 
 def _parse_date_to_ms(date_str: str) -> int:
-    """Convert a Synthea DATE string to ms-epoch.
+    """Convert a Synthea DATE string to ms-epoch (UTC).
 
     Synthea uses ISO 8601 format: ``YYYY-MM-DDTHH:MM:SS`` or ``YYYY-MM-DD``.
+    Dates without an explicit timezone offset are treated as UTC to ensure
+    reproducible conversions across environments.
 
     Args:
         date_str: ISO 8601 date/datetime string.
 
     Returns:
-        Integer milliseconds since epoch.
+        Integer milliseconds since Unix epoch (UTC).
     """
-    import datetime
-
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
-            dt = datetime.datetime.strptime(date_str, fmt)
+            dt = datetime.datetime.strptime(date_str, fmt).replace(
+                tzinfo=datetime.timezone.utc
+            )
             return int(dt.timestamp() * 1000)
         except ValueError:
             continue

@@ -17,13 +17,25 @@ from src.simulator import ScenarioFactory, VitalsSimulator
 # Helper
 # ---------------------------------------------------------------------------
 
+# v2 required fields in every published payload
 _REQUIRED_FIELDS = {
+    "version",
+    "patient_id",
+    "scenario",
+    "scenario_stage",
     "timestamp",
     "hr",
     "bp_sys",
     "bp_dia",
     "o2_sat",
     "temperature",
+    "respiratory_rate",
+    "wbc",
+    "lactate",
+    "sirs_score",
+    "qsofa_score",
+    "sepsis_stage",
+    "sepsis_onset_ts",
     "quality",
     "source",
 }
@@ -101,19 +113,40 @@ def test_determinism():
 
 
 # ---------------------------------------------------------------------------
-# JSON schema
+# JSON schema (v2)
 # ---------------------------------------------------------------------------
 
 
+def test_v2_json_schema():
+    """VitalsSimulator._generate_vital() returns a dict with all v2 required fields."""
+    for scenario in ("healthy", "sepsis", "critical"):
+        sim = VitalsSimulator(scenario=scenario, seed=42)
+        vital = sim._generate_vital()
+        missing = _REQUIRED_FIELDS - vital.keys()
+        assert not missing, f"Missing fields for scenario '{scenario}': {missing}"
+        assert vital["version"] == "2.0"
+        assert vital["source"] == "simulator"
+        assert vital["patient_id"] == "P001"
+        assert isinstance(vital["timestamp"], int)
+        assert isinstance(vital["quality"], int)
+        assert isinstance(vital["sirs_score"], int)
+        assert isinstance(vital["qsofa_score"], int)
+        assert vital["sepsis_stage"] in {"none", "sirs", "sepsis", "septic_shock"}
+        # All numeric vitals must be float or int
+        for f in ("hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate", "wbc", "lactate"):
+            assert isinstance(vital[f], (int, float)), f"{f} is not numeric (scenario={scenario})"
+
+
 def test_json_schema():
-    """Generated vital dict contains all required JSON schema fields."""
+    """ScenarioFactory (legacy v1) still returns required v1 fields."""
+    v1_required = {"timestamp", "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "quality", "source"}
     for factory_fn in (
         ScenarioFactory.healthy,
         ScenarioFactory.sepsis,
         ScenarioFactory.critical,
     ):
         vital = factory_fn(seed=42)
-        missing = _REQUIRED_FIELDS - vital.keys()
+        missing = v1_required - vital.keys()
         assert not missing, f"Missing fields: {missing}"
         assert vital["source"] == "simulator"
         assert isinstance(vital["timestamp"], int)

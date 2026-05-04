@@ -1,0 +1,12 @@
+{
+  "artifact_name": "synthea-sepsis-p10-s42-v3.3.0",
+  "synthea_version": "3.3.0",
+  "module": "sepsis",
+  "population": 10,
+  "seed": 42,
+  "state": "Massachusetts",
+  "git_sha": "76675bfefd06cc42f17855623ae31416bb338e40",
+  "generated_at": "2026-05-04T11:59:49Z",
+  "csv_file_count": 3,
+  "csv_total_data_rows": 344
+}

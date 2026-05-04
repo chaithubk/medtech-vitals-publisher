@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-"""Vitals Simulator - Synthetic vital signs generator.
+"""Vitals Simulator - Synthetic vital signs generator (v2).
 
 This module implements:
-- VitalsSimulator: Main orchestrator
-- ScenarioFactory: Vital signs generation per clinical scenario
+- VitalsSimulator: Main orchestrator (publishes v2 payloads)
+- ScenarioFactory: Legacy v1 vital-sign generation (kept for compatibility)
 - MQTTClient: paho-mqtt wrapper with exponential-backoff reconnect
+
+v2 Changes
+----------
+- Publishes :class:`~src.schema.VitalsPayloadV2` to ``medtech/vitals/latest``.
+- Integrates :class:`~src.progression.ProgressionEngine` for multi-stage
+  time-series generation.
+- Optionally reads from Synthea CSV output via
+  :class:`~src.synthea_bridge.SyntheaBridge`.
+- New CLI flags: ``--patient-id``, ``--synthea-path``, ``--stage``,
+  ``--seed``, ``--interval``.
 """
 
 import argparse
@@ -13,11 +23,14 @@ import logging
 import os
 import random
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
 
 import paho.mqtt.client as mqtt
 
 from src import config
+from src.progression import ProgressionEngine
+from src.schema import build_payload
+from src.synthea_bridge import SyntheaBridge
 
 logger = logging.getLogger(__name__)
 
@@ -306,13 +319,21 @@ class ScenarioFactory:
 
 
 class VitalsSimulator:
-    """Main orchestrator: generates synthetic vitals and publishes them via MQTT.
+    """Main orchestrator: generates v2 synthetic vitals and publishes them via MQTT.
+
+    Data source priority (highest to lowest):
+    1. Synthea bridge (if ``synthea_path`` is provided and patient found).
+    2. :class:`~src.progression.ProgressionEngine` (default).
 
     Args:
         scenario: Clinical scenario ('healthy', 'sepsis', or 'critical').
         broker_host: MQTT broker hostname or IP.
         broker_port: MQTT broker TCP port.
         seed: Random seed for deterministic vital generation.
+        patient_id: Patient identifier embedded in every payload.
+        synthea_path: Optional path to Synthea ``output/csv`` directory.
+        stage: Optional explicit starting stage within the scenario.
+        publish_interval_s: Seconds between published readings.
     """
 
     def __init__(
@@ -320,7 +341,11 @@ class VitalsSimulator:
         scenario: str = "healthy",
         broker_host: str = config.MQTT_BROKER,
         broker_port: int = config.MQTT_PORT,
-        seed: int = 42,
+        seed: int = config.SEED,
+        patient_id: str = config.PATIENT_ID,
+        synthea_path: str = "",
+        stage: str = "",
+        publish_interval_s: int = config.PUBLISH_INTERVAL_S,
     ) -> None:
         """Initialise the simulator.
 
@@ -329,25 +354,119 @@ class VitalsSimulator:
             broker_host: MQTT broker hostname or IP.
             broker_port: MQTT broker TCP port.
             seed: Random seed for deterministic vital generation.
+            patient_id: Patient identifier embedded in every payload.
+            synthea_path: Optional path to Synthea ``output/csv`` directory.
+            stage: Optional explicit starting stage within the scenario.
+            publish_interval_s: Seconds between published readings.
         """
         if scenario not in config.SCENARIOS:
             valid = ", ".join(config.SCENARIOS.keys())
             raise ValueError(f"Invalid scenario '{scenario}'. Expected one of: {valid}")
         self.scenario = scenario
         self.seed = seed
+        self.patient_id = patient_id
+        self.publish_interval_s = publish_interval_s
         self.config = config
         self._running = False
         self._publish_count = 0
         self._connect_count = 0
+        # Legacy RNG kept so ScenarioFactory static methods still work in tests
         self._rng = random.Random(seed)
         self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
+
+        # Source label embedded in every published payload: "simulator" by default,
+        # overridden to "synthea" when the Synthea bridge is active.
+        self._source: str = "simulator"
+
+        # Build the v2 reading source iterator
+        self._reading_iter: Iterator[Dict[str, Any]] = self._build_source(
+            scenario=scenario,
+            stage=stage,
+            seed=seed,
+            patient_id=patient_id,
+            synthea_path=synthea_path,
+        )
+
         logger.info(
-            "VitalsSimulator initialised: scenario=%s, broker=%s:%d, seed=%d",
+            "VitalsSimulator v2 initialised: scenario=%s, broker=%s:%d, seed=%d",
             scenario,
             broker_host,
             broker_port,
             seed,
         )
+
+    # ------------------------------------------------------------------
+    # Internal: source construction
+    # ------------------------------------------------------------------
+
+    def _build_source(
+        self,
+        scenario: str,
+        stage: str,
+        seed: int,
+        patient_id: str,
+        synthea_path: str,
+    ) -> Iterator[Dict[str, Any]]:
+        """Return an iterator that yields v2-compatible raw reading dicts.
+
+        Args:
+            scenario: Clinical scenario name.
+            stage: Optional starting stage.
+            seed: RNG seed.
+            patient_id: Patient identifier.
+            synthea_path: Path to Synthea CSV dir (empty string = disabled).
+
+        Returns:
+            An iterator yielding raw reading dicts.
+        """
+        engine = ProgressionEngine(
+            scenario=scenario,
+            stage=stage or None,
+            patient_id=patient_id,
+            seed=seed,
+        )
+
+        if synthea_path:
+            try:
+                bridge = SyntheaBridge(synthea_path)
+                available = bridge.list_patients()
+                pid: Optional[str] = None
+                if patient_id in available:
+                    # Caller supplied an explicit, valid Synthea patient UUID
+                    pid = patient_id
+                elif scenario == "sepsis":
+                    # Auto-select the best candidate: prefer patients with a confirmed
+                    # Sepsis condition record, then fall back to vital-sign heuristics.
+                    sepsis_candidates = bridge.list_sepsis_patients()
+                    if sepsis_candidates:
+                        pid = sepsis_candidates[0]
+                        self.patient_id = pid
+                        logger.info("Auto-selected sepsis patient from Synthea dataset: %s", pid)
+                if pid is None:
+                    pid = available[0] if available else None
+                if pid:
+                    logger.info("Using Synthea data source: path=%s, patient=%s", synthea_path, pid)
+                    self._source = "synthea"
+                    return bridge.iter_patient(pid, fallback_engine=engine, loop=True)
+                logger.warning("No patients found in Synthea path '%s'; using progression engine", synthea_path)
+            except (FileNotFoundError, OSError) as exc:
+                logger.warning("Synthea bridge unavailable (%s); using progression engine", exc)
+
+        # Default: progression engine as infinite generator
+        return self._engine_iter(engine)
+
+    @staticmethod
+    def _engine_iter(engine: ProgressionEngine) -> Iterator[Dict[str, Any]]:
+        """Wrap a ProgressionEngine as an infinite iterator.
+
+        Args:
+            engine: Configured ProgressionEngine instance.
+
+        Yields:
+            Reading dicts from the engine.
+        """
+        while True:
+            yield engine.next_reading()
 
     def connect(self) -> bool:
         """Connect to the MQTT broker.
@@ -363,20 +482,42 @@ class VitalsSimulator:
         return result
 
     def _generate_vital(self) -> Dict[str, Any]:
-        """Generate one vital-signs reading for the current scenario.
+        """Generate the next v2 vital-signs payload dict.
+
+        Consumes one reading from the internal source iterator, computes
+        SIRS/qSOFA scores via :func:`~src.schema.build_payload`, and
+        returns the JSON-serialisable dict.
 
         Returns:
-            Dict with vital sign fields.
+            Dict conforming to the v2 MQTT payload schema.
         """
-        return ScenarioFactory._generate(self.scenario, self._rng)
+        raw = next(self._reading_iter)
+        payload = build_payload(
+            patient_id=self.patient_id,
+            scenario=self.scenario,
+            scenario_stage=raw["scenario_stage"],
+            timestamp=raw["timestamp"],
+            hr=raw["hr"],
+            bp_sys=raw["bp_sys"],
+            bp_dia=raw["bp_dia"],
+            o2_sat=raw["o2_sat"],
+            temperature=raw["temperature"],
+            respiratory_rate=raw["respiratory_rate"],
+            wbc=raw["wbc"],
+            lactate=raw["lactate"],
+            quality=raw["quality"],
+            source=self._source,
+            sepsis_onset_ts=raw.get("sepsis_onset_ts"),
+        )
+        return payload.to_dict()
 
     def run(self) -> None:
-        """Main event loop: publishes vitals every PUBLISH_INTERVAL_S seconds.
+        """Main event loop: publishes v2 vitals every publish_interval_s seconds.
 
         Runs until shutdown() is called or a KeyboardInterrupt is raised.
         Reconnects automatically if the broker drops the connection.
         """
-        logger.info("VitalsSimulator starting – scenario=%s", self.scenario)
+        logger.info("VitalsSimulator v2 starting – scenario=%s", self.scenario)
         self._running = True
         self.connect()
         while self._running:
@@ -394,7 +535,7 @@ class VitalsSimulator:
             else:
                 logger.warning("Failed to publish vital reading #%d", self._publish_count + 1)
 
-            time.sleep(config.PUBLISH_INTERVAL_S)
+            time.sleep(self.publish_interval_s)
 
     def shutdown(self) -> None:
         """Gracefully stop the event loop and close the MQTT connection."""
@@ -422,7 +563,7 @@ def main() -> None:
     """Parse CLI arguments, create a VitalsSimulator, and run it."""
     _configure_logging()
 
-    parser = argparse.ArgumentParser(description="MedTech Vitals Publisher")
+    parser = argparse.ArgumentParser(description="MedTech Vitals Publisher v2")
     parser.add_argument(
         "--scenario",
         choices=_VALID_SCENARIOS,
@@ -440,12 +581,44 @@ def main() -> None:
         default=config.MQTT_PORT,
         help=f"MQTT broker port (default: {config.MQTT_PORT})",
     )
+    parser.add_argument(
+        "--patient-id",
+        default=config.PATIENT_ID,
+        help="Patient identifier embedded in every v2 payload (default: P001)",
+    )
+    parser.add_argument(
+        "--synthea-path",
+        default=config.SYNTHEA_DATA_PATH,
+        help="Path to Synthea output/csv directory (optional; falls back to built-in engine)",
+    )
+    parser.add_argument(
+        "--stage",
+        default=config.SCENARIO_STAGE,
+        help="Starting progression stage within the scenario (optional)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=config.SEED,
+        help=f"Random seed for deterministic replay (default: {config.SEED})",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=config.PUBLISH_INTERVAL_S,
+        help=f"Publish interval in seconds (default: {config.PUBLISH_INTERVAL_S})",
+    )
     args = parser.parse_args()
 
     simulator = VitalsSimulator(
         scenario=args.scenario,
         broker_host=args.broker_host,
         broker_port=args.broker_port,
+        patient_id=args.patient_id,
+        synthea_path=args.synthea_path,
+        stage=args.stage,
+        seed=args.seed,
+        publish_interval_s=args.interval,
     )
     try:
         simulator.run()

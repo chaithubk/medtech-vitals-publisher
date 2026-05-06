@@ -84,6 +84,48 @@ need_cmd() {
   fi
 }
 
+run_docker_smoke_test() {
+  local network_name="smoke-net-local-ci"
+  local container_name="vitals-publisher-local-ci"
+  local image_name="medtech-vitals-publisher:local-ci"
+
+  docker network create "${network_name}" >/dev/null
+
+  docker build -t "${image_name}" .
+
+  docker run -d \
+    --name "${container_name}" \
+    --network "${network_name}" \
+    --hostname vitals-publisher \
+    -e MQTT_BROKER=localhost \
+    -e MQTT_PORT=1883 \
+    -e PUBLISH_INTERVAL_S=5 \
+    -e SCENARIO=healthy \
+    -e LOGLEVEL=DEBUG \
+    -e PYTHONUNBUFFERED=1 \
+    "${image_name}" >/dev/null
+
+  local deadline=$((SECONDS + 40))
+  while [[ "$(docker inspect --format='{{.State.Health.Status}}' "${container_name}" 2>/dev/null)" != "healthy" ]]; do
+    if (( SECONDS >= deadline )); then
+      echo "Timed out waiting for container health"
+      return 1
+    fi
+    sleep 2
+  done
+
+  docker run --rm --network "${network_name}" \
+    --entrypoint mosquitto_pub eclipse-mosquitto:2 \
+    -h vitals-publisher -p 1883 -t medtech/smoke/probe -m ping
+
+  docker run --rm --network "${network_name}" \
+    --entrypoint mosquitto_sub eclipse-mosquitto:2 \
+    -h vitals-publisher -p 1883 -t 'medtech/vitals/latest' -C 1 -W 20
+
+  docker rm -f "${container_name}" >/dev/null 2>&1 || true
+  docker network rm "${network_name}" >/dev/null 2>&1 || true
+}
+
 echo -e "${YELLOW}Repository:${NC} ${REPO_ROOT}"
 if [[ ${CHECK_ONLY} -eq 1 ]]; then
   echo -e "${YELLOW}Mode:${NC} check-only"
@@ -138,6 +180,12 @@ if [[ ${SKIP_SECURITY} -eq 0 ]]; then
   run_step "Safety" "safety check --json > .ci-local/safety-report.json"
 else
   echo -e "\n${YELLOW}Skipping security checks (--skip-security).${NC}"
+fi
+
+# Docker smoke-test gate (CI parity)
+# Skipped if Docker is not available in this environment
+if command -v docker >/dev/null 2>&1; then
+  run_step "Docker smoke-test" "run_docker_smoke_test"
 fi
 
 echo ""

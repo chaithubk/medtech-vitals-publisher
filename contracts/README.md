@@ -35,8 +35,11 @@ Always update it via the vendoring workflow or script:
 ### Option B — Local script
 
 ```bash
-# Update to latest tag (auto-detected)
+# Re-fetch the currently pinned tag from contracts/VITALS_CONTRACT_VERSION.txt
 python scripts/vendor_telemetry_contract.py
+
+# Update to latest release/tag (auto-detected)
+python scripts/vendor_telemetry_contract.py --tag latest
 
 # Pin to a specific tag
 python scripts/vendor_telemetry_contract.py --tag v2.1.0

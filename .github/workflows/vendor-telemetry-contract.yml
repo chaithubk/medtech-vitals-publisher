@@ -36,8 +36,12 @@ jobs:
             echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
             echo "Using requested tag: $INPUT_TAG"
           else
-            LATEST=$(gh api repos/chaithubk/medtech-telemetry-contract/tags \
-              --jq '.[0].name' 2>/dev/null || echo "")
+            LATEST=$(gh api repos/chaithubk/medtech-telemetry-contract/releases/latest \
+              --jq '.tag_name' 2>/dev/null || echo "")
+            if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+              LATEST=$(gh api repos/chaithubk/medtech-telemetry-contract/tags \
+                --jq '.[0].name' 2>/dev/null || echo "")
+            fi
             if [ -z "$LATEST" ]; then
               echo "❌ Could not resolve latest tag from chaithubk/medtech-telemetry-contract."
               exit 1

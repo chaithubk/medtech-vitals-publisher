@@ -17,6 +17,7 @@ import pytest
 
 from src.progression import ProgressionEngine
 from src.schema import build_payload
+from src.synthea_bridge import SyntheaBridge
 
 # ---------------------------------------------------------------------------
 # Schema fixture
@@ -24,6 +25,8 @@ from src.schema import build_payload
 
 _REPO_ROOT = Path(__file__).parent.parent
 _SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "v2.0.json"
+_DEMO_CSV = _REPO_ROOT / "data" / "synthea" / "demo" / "csv"
+_DEMO_SEPSIS_PATIENT = "79590754-4679-dafd-8aab-103706580fff"
 
 
 @pytest.fixture(scope="module")
@@ -65,6 +68,34 @@ def _generate_payload(scenario: str, stage: str | None = None) -> dict:
     return payload.to_dict()
 
 
+def _generate_synthea_payload(patient_id: str) -> tuple[dict, dict]:
+    """Generate one payload from the Synthea bridge path used in production."""
+    bridge = SyntheaBridge(str(_DEMO_CSV))
+    # Start at septic_shock so quality matches stage-based mapping (poor).
+    fallback_engine = ProgressionEngine(scenario="sepsis", stage="septic_shock", seed=42)
+    readings = bridge.load_patient(patient_id, fallback_engine=fallback_engine)
+    assert readings, f"No Synthea readings found for patient {patient_id}"
+    raw = readings[0]
+    payload = build_payload(
+        patient_id="P001",
+        scenario="sepsis",
+        scenario_stage=raw["scenario_stage"],
+        timestamp=raw["timestamp"],
+        hr=raw["hr"],
+        bp_sys=raw["bp_sys"],
+        bp_dia=raw["bp_dia"],
+        o2_sat=raw["o2_sat"],
+        temperature=raw["temperature"],
+        respiratory_rate=raw["respiratory_rate"],
+        wbc=raw["wbc"],
+        lactate=raw["lactate"],
+        quality=raw["quality"],
+        source="synthea",
+        sepsis_onset_ts=raw.get("sepsis_onset_ts"),
+    )
+    return payload.to_dict(), raw
+
+
 # ---------------------------------------------------------------------------
 # Contract compliance tests
 # ---------------------------------------------------------------------------
@@ -85,7 +116,8 @@ class TestContractCompliance:
         ],
     )
     def test_payload_validates_against_contract(self, vitals_schema, scenario, stage):
-        """Generated payload for every scenario/stage must pass JSON Schema validation."""
+        """Generated payload for every scenario/stage must pass JSON Schema
+        validation."""
         payload = _generate_payload(scenario, stage)
         try:
             jsonschema.validate(instance=payload, schema=vitals_schema)
@@ -96,8 +128,21 @@ class TestContractCompliance:
                 f"Payload was:\n{json.dumps(payload, indent=2)}"
             )
 
+    @pytest.mark.skipif(
+        not _DEMO_CSV.is_dir(),
+        reason="Demo dataset not present (data/synthea/demo/csv)",
+    )
+    def test_synthea_payload_validates_against_contract(self, vitals_schema):
+        """Synthea-backed emissions must validate against the vendored schema."""
+        payload, raw = _generate_synthea_payload(_DEMO_SEPSIS_PATIENT)
+        jsonschema.validate(instance=payload, schema=vitals_schema)
+        assert payload["source"] == "synthea"
+        assert payload["quality"] == raw["quality"]
+        assert payload["quality"] in {"degraded", "poor"}
+
     def test_all_required_fields_present(self, vitals_schema):
-        """Every required field in the schema is present in the generated payload."""
+        """Every required field in the schema is present in the generated
+        payload."""
         payload = _generate_payload("sepsis", "sepsis_onset")
         required = set(vitals_schema.get("required", []))
         missing = required - payload.keys()
@@ -108,7 +153,7 @@ class TestContractCompliance:
         payload = _generate_payload("healthy")
         defined = set(vitals_schema["properties"].keys())
         extra = payload.keys() - defined
-        assert not extra, f"Payload contains fields not defined in contract schema: {extra}"
+        assert not extra, f"Payload contains undefined fields: {extra}"
 
     def test_version_field_is_2_0(self, vitals_schema):
         """version field must be exactly '2.0' as required by the contract."""
@@ -149,7 +194,7 @@ class TestContractCompliance:
         assert payload["sepsis_onset_ts"] is None
 
     def test_sepsis_stage_enum(self, vitals_schema):
-        """sepsis_stage value must be one of the enum values in the contract."""
+        """sepsis_stage must be one of the enum values in the contract."""
         valid_stages = {"none", "sirs", "sepsis", "septic_shock"}
         for scenario, stage in [
             ("healthy", None),

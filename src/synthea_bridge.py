@@ -203,7 +203,9 @@ class SyntheaBridge:
         with open(self._conditions_path, newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                if row.get("CODE", "").strip() == "91302008" and row.get("PATIENT", "").strip() == patient_id:
+                code = row.get("CODE", "").strip()
+                pid = row.get("PATIENT", "").strip()
+                if code == "91302008" and pid == patient_id:
                     date_str = row.get("START", "").strip()
                     if date_str:
                         return _parse_date_to_ms(date_str)
@@ -259,7 +261,7 @@ class SyntheaBridge:
                 "respiratory_rate": obs.get("respiratory_rate", fb["respiratory_rate"]),
                 "wbc": obs.get("wbc", fb["wbc"]),
                 "lactate": obs.get("lactate", fb["lactate"]),
-                "quality": "good",
+                "quality": fb.get("quality", "good"),
                 "sepsis_onset_ts": fb.get("sepsis_onset_ts"),
             }
             results.append(reading)

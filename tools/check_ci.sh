@@ -89,6 +89,12 @@ run_docker_smoke_test() {
   local container_name="vitals-publisher-local-ci"
   local image_name="medtech-vitals-publisher:local-ci"
 
+  if ! docker info >/dev/null 2>&1; then
+    echo "Docker daemon is not reachable from this dev container."
+    echo "Rebuild the container so Docker socket/features are applied."
+    return 1
+  fi
+
   docker network create "${network_name}" >/dev/null
 
   docker build -t "${image_name}" .
@@ -139,6 +145,7 @@ need_cmd isort
 need_cmd flake8
 need_cmd mypy
 need_cmd pytest
+need_cmd docker
 
 if [[ ${SKIP_SECURITY} -eq 0 ]]; then
   need_cmd bandit
@@ -183,10 +190,7 @@ else
 fi
 
 # Docker smoke-test gate (CI parity)
-# Skipped if Docker is not available in this environment
-if command -v docker >/dev/null 2>&1; then
-  run_step "Docker smoke-test" "run_docker_smoke_test"
-fi
+run_step "Docker smoke-test" "run_docker_smoke_test"
 
 echo ""
 if [[ ${FAILED} -ne 0 ]]; then

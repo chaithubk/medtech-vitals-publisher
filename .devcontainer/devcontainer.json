@@ -2,6 +2,9 @@
   "name": "Vitals Publisher (Python 3.11)",
   "dockerFile": "Dockerfile",
   "context": "..",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
   "customizations": {
     "vscode": {
       "extensions": [

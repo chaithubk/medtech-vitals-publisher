@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y \
     procps \
     gawk \
     locate \
+    docker.io \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean

@@ -45,3 +45,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local CI parity artifacts
+.ci-local/
+bandit-report.json
+safety-report.json

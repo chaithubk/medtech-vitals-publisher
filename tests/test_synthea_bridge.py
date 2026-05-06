@@ -6,14 +6,18 @@ from pathlib import Path
 
 import pytest
 
-from src.synthea_bridge import (
-    SyntheaBridge,
-    _default_vitals,
-    _parse_date_to_ms,
-)
+from src.synthea_bridge import SyntheaBridge, _default_vitals, _parse_date_to_ms
 
 # Conditions CSV header / rows used in tests
-_CONDITIONS_HEADER = ["START", "STOP", "PATIENT", "ENCOUNTER", "SYSTEM", "CODE", "DESCRIPTION"]
+_CONDITIONS_HEADER = [
+    "START",
+    "STOP",
+    "PATIENT",
+    "ENCOUNTER",
+    "SYSTEM",
+    "CODE",
+    "DESCRIPTION",
+]
 
 
 def _write_conditions_csv(path: Path, rows: list) -> None:
@@ -38,29 +42,128 @@ def _make_synthea_dir_with_conditions(obs_rows=None, cond_rows=None) -> tempfile
 # ---------------------------------------------------------------------------
 
 # Minimal observations.csv rows covering all mapped LOINC codes
-_OBSERVATIONS_HEADER = ["DATE", "PATIENT", "ENCOUNTER", "CODE", "DESCRIPTION", "VALUE", "UNITS", "TYPE"]
+_OBSERVATIONS_HEADER = [
+    "DATE",
+    "PATIENT",
+    "ENCOUNTER",
+    "CODE",
+    "DESCRIPTION",
+    "VALUE",
+    "UNITS",
+    "TYPE",
+]
 
 _SAMPLE_ROWS = [
     # Patient A — heart rate
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "8867-4", "Heart rate", "105", "/min", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "8867-4",
+        "Heart rate",
+        "105",
+        "/min",
+        "numeric",
+    ],
     # Patient A — systolic BP
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "8480-6", "Systolic BP", "95", "mmHg", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "8480-6",
+        "Systolic BP",
+        "95",
+        "mmHg",
+        "numeric",
+    ],
     # Patient A — diastolic BP
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "8462-4", "Diastolic BP", "60", "mmHg", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "8462-4",
+        "Diastolic BP",
+        "60",
+        "mmHg",
+        "numeric",
+    ],
     # Patient A — O2 saturation
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "59408-5", "O2 Sat", "92", "%", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "59408-5",
+        "O2 Sat",
+        "92",
+        "%",
+        "numeric",
+    ],
     # Patient A — temperature
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "8310-5", "Body Temp", "39.1", "Cel", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "8310-5",
+        "Body Temp",
+        "39.1",
+        "Cel",
+        "numeric",
+    ],
     # Patient A — respiratory rate
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "9279-1", "Resp Rate", "24", "/min", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "9279-1",
+        "Resp Rate",
+        "24",
+        "/min",
+        "numeric",
+    ],
     # Patient A — WBC
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "6690-2", "WBC", "14.5", "10*3/uL", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "6690-2",
+        "WBC",
+        "14.5",
+        "10*3/uL",
+        "numeric",
+    ],
     # Patient A — lactate
-    ["2023-01-01T08:00:00", "patient-A", "enc-1", "2524-7", "Lactate", "2.8", "mmol/L", "numeric"],
+    [
+        "2023-01-01T08:00:00",
+        "patient-A",
+        "enc-1",
+        "2524-7",
+        "Lactate",
+        "2.8",
+        "mmol/L",
+        "numeric",
+    ],
     # Patient A — second timestamp (different time)
-    ["2023-01-01T08:10:00", "patient-A", "enc-1", "8867-4", "Heart rate", "110", "/min", "numeric"],
+    [
+        "2023-01-01T08:10:00",
+        "patient-A",
+        "enc-1",
+        "8867-4",
+        "Heart rate",
+        "110",
+        "/min",
+        "numeric",
+    ],
     # Patient B — just one row
-    ["2023-01-02T10:00:00", "patient-B", "enc-2", "8867-4", "Heart rate", "108", "/min", "numeric"],
+    [
+        "2023-01-02T10:00:00",
+        "patient-B",
+        "enc-2",
+        "8867-4",
+        "Heart rate",
+        "108",
+        "/min",
+        "numeric",
+    ],
 ]
 
 
@@ -144,8 +247,26 @@ class TestListPatients:
     def test_list_sepsis_patients_excludes_healthy(self):
         """list_sepsis_patients() excludes patients with healthy vitals only."""
         healthy_rows = [
-            ["2023-01-01T08:00:00", "healthy-P", "enc-h", "8867-4", "Heart rate", "72", "/min", "numeric"],
-            ["2023-01-01T08:00:00", "healthy-P", "enc-h", "8310-5", "Body Temp", "37.0", "Cel", "numeric"],
+            [
+                "2023-01-01T08:00:00",
+                "healthy-P",
+                "enc-h",
+                "8867-4",
+                "Heart rate",
+                "72",
+                "/min",
+                "numeric",
+            ],
+            [
+                "2023-01-01T08:00:00",
+                "healthy-P",
+                "enc-h",
+                "8310-5",
+                "Body Temp",
+                "37.0",
+                "Cel",
+                "numeric",
+            ],
         ]
         with _make_synthea_dir(healthy_rows) as tmpdir:
             bridge = SyntheaBridge(tmpdir)
@@ -177,8 +298,20 @@ class TestLoadPatient:
 
     def test_reading_contains_required_fields(self):
         """Each reading dict contains all required v2 vital fields."""
-        required = {"scenario_stage", "timestamp", "hr", "bp_sys", "bp_dia", "o2_sat",
-                    "temperature", "respiratory_rate", "wbc", "lactate", "quality", "sepsis_onset_ts"}
+        required = {
+            "scenario_stage",
+            "timestamp",
+            "hr",
+            "bp_sys",
+            "bp_dia",
+            "o2_sat",
+            "temperature",
+            "respiratory_rate",
+            "wbc",
+            "lactate",
+            "quality",
+            "sepsis_onset_ts",
+        }
         with _make_synthea_dir() as tmpdir:
             bridge = SyntheaBridge(tmpdir)
             readings = bridge.load_patient("patient-A")
@@ -207,7 +340,16 @@ class TestLoadPatient:
         """Fields not in Synthea CSV are filled from the fallback dict."""
         # Only provide HR rows — other vitals must be filled by fallback
         hr_only_rows = [
-            ["2023-01-01T08:00:00", "patient-A", "enc-1", "8867-4", "Heart rate", "115", "/min", "numeric"],
+            [
+                "2023-01-01T08:00:00",
+                "patient-A",
+                "enc-1",
+                "8867-4",
+                "Heart rate",
+                "115",
+                "/min",
+                "numeric",
+            ],
         ]
         with _make_synthea_dir(hr_only_rows) as tmpdir:
             bridge = SyntheaBridge(tmpdir)
@@ -264,9 +406,9 @@ class TestIterPatient:
             timestamps = [r["timestamp"] for r in all_readings]
             # Every timestamp must be strictly greater than the previous
             for i in range(1, len(timestamps)):
-                assert timestamps[i] > timestamps[i - 1], (
-                    f"timestamp[{i}]={timestamps[i]} not > timestamp[{i-1}]={timestamps[i-1]}"
-                )
+                assert (
+                    timestamps[i] > timestamps[i - 1]
+                ), f"timestamp[{i}]={timestamps[i]} not > timestamp[{i-1}]={timestamps[i-1]}"
 
 
 # ---------------------------------------------------------------------------
@@ -316,8 +458,18 @@ class TestParseDateToMs:
 def test_default_vitals_structure():
     """_default_vitals() returns a dict with all expected keys."""
     expected_keys = {
-        "scenario_stage", "timestamp", "hr", "bp_sys", "bp_dia", "o2_sat",
-        "temperature", "respiratory_rate", "wbc", "lactate", "quality", "sepsis_onset_ts",
+        "scenario_stage",
+        "timestamp",
+        "hr",
+        "bp_sys",
+        "bp_dia",
+        "o2_sat",
+        "temperature",
+        "respiratory_rate",
+        "wbc",
+        "lactate",
+        "quality",
+        "sepsis_onset_ts",
     }
     defaults = _default_vitals(ts_ms=0)
     assert expected_keys == set(defaults.keys())
@@ -333,10 +485,26 @@ class TestConditionsCSV:
     """Tests for conditions.csv-backed sepsis detection methods."""
 
     _SEPSIS_ROWS = [
-        ["2012-04-18", "", "patient-sep", "enc-1", "SNOMED-CT", "91302008", "Sepsis (disorder)"],
+        [
+            "2012-04-18",
+            "",
+            "patient-sep",
+            "enc-1",
+            "SNOMED-CT",
+            "91302008",
+            "Sepsis (disorder)",
+        ],
     ]
     _OTHER_ROWS = [
-        ["2020-01-01", "", "patient-flu", "enc-2", "SNOMED-CT", "6142004", "Influenza (disorder)"],
+        [
+            "2020-01-01",
+            "",
+            "patient-flu",
+            "enc-2",
+            "SNOMED-CT",
+            "6142004",
+            "Influenza (disorder)",
+        ],
     ]
 
     def test_list_sepsis_patients_from_conditions_finds_patient(self):
@@ -358,11 +526,18 @@ class TestConditionsCSV:
         """list_sepsis_patients() includes patients from conditions.csv."""
         # Use only healthy-vitals observations so the heuristic alone returns nothing
         healthy_obs = [
-            ["2023-01-01T08:00:00", "healthy-P", "enc-h", "8867-4", "Heart rate", "72", "/min", "numeric"],
+            [
+                "2023-01-01T08:00:00",
+                "healthy-P",
+                "enc-h",
+                "8867-4",
+                "Heart rate",
+                "72",
+                "/min",
+                "numeric",
+            ],
         ]
-        with _make_synthea_dir_with_conditions(
-            obs_rows=healthy_obs, cond_rows=self._SEPSIS_ROWS
-        ) as tmpdir:
+        with _make_synthea_dir_with_conditions(obs_rows=healthy_obs, cond_rows=self._SEPSIS_ROWS) as tmpdir:
             bridge = SyntheaBridge(tmpdir)
             result = bridge.list_sepsis_patients()
             assert "patient-sep" in result
@@ -399,13 +574,23 @@ class TestIterPatientEngineFallback:
 
     def _make_engine(self):
         from src.progression import ProgressionEngine
+
         return ProgressionEngine(scenario="sepsis", seed=42)
 
     def test_iter_patient_no_loinc_obs_loop_true_yields(self):
         """When observations are all non-LOINC, loop=True yields from engine."""
         # observations.csv contains only QALY rows (no LOINC vitals)
         qaly_rows = [
-            ["2023-01-01T08:00:00", "patient-qaly", "enc-1", "QALY", "QALY", "20.0", "a", "numeric"],
+            [
+                "2023-01-01T08:00:00",
+                "patient-qaly",
+                "enc-1",
+                "QALY",
+                "QALY",
+                "20.0",
+                "a",
+                "numeric",
+            ],
         ]
         with _make_synthea_dir(qaly_rows) as tmpdir:
             bridge = SyntheaBridge(tmpdir)
@@ -421,7 +606,16 @@ class TestIterPatientEngineFallback:
     def test_iter_patient_no_loinc_obs_loop_false_yields_nothing(self):
         """When no LOINC obs and loop=False, yields nothing (no engine fallback)."""
         qaly_rows = [
-            ["2023-01-01T08:00:00", "patient-qaly", "enc-1", "QALY", "QALY", "20.0", "a", "numeric"],
+            [
+                "2023-01-01T08:00:00",
+                "patient-qaly",
+                "enc-1",
+                "QALY",
+                "QALY",
+                "20.0",
+                "a",
+                "numeric",
+            ],
         ]
         with _make_synthea_dir(qaly_rows) as tmpdir:
             bridge = SyntheaBridge(tmpdir)
@@ -431,7 +625,16 @@ class TestIterPatientEngineFallback:
     def test_iter_patient_no_loinc_no_engine_loop_true_yields_nothing(self):
         """When no LOINC obs and no fallback engine, yields nothing even with loop=True."""
         qaly_rows = [
-            ["2023-01-01T08:00:00", "patient-qaly", "enc-1", "QALY", "QALY", "20.0", "a", "numeric"],
+            [
+                "2023-01-01T08:00:00",
+                "patient-qaly",
+                "enc-1",
+                "QALY",
+                "QALY",
+                "20.0",
+                "a",
+                "numeric",
+            ],
         ]
         with _make_synthea_dir(qaly_rows) as tmpdir:
             bridge = SyntheaBridge(tmpdir)

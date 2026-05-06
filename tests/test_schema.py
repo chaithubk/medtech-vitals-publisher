@@ -1,7 +1,5 @@
 """Unit tests for src.schema — v2 payload and clinical scoring helpers."""
 
-import pytest
-
 from src.schema import (
     SCHEMA_VERSION,
     VitalsPayloadV2,
@@ -10,7 +8,6 @@ from src.schema import (
     calculate_sirs,
     classify_sepsis_stage,
 )
-
 
 # ---------------------------------------------------------------------------
 # SIRS scoring
@@ -180,7 +177,7 @@ class TestVitalsPayloadV2:
             qsofa_score=2,
             sepsis_stage="septic_shock",
             sepsis_onset_ts=1_700_000_001_000,
-            quality=85,
+            quality="degraded",
             source="simulator",
         )
         defaults.update(overrides)
@@ -196,10 +193,25 @@ class TestVitalsPayloadV2:
         p = self._make_payload()
         d = p.to_dict()
         expected_keys = {
-            "version", "patient_id", "scenario", "scenario_stage", "timestamp",
-            "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate",
-            "wbc", "lactate", "sirs_score", "qsofa_score", "sepsis_stage",
-            "sepsis_onset_ts", "quality", "source",
+            "version",
+            "patient_id",
+            "scenario",
+            "scenario_stage",
+            "timestamp",
+            "hr",
+            "bp_sys",
+            "bp_dia",
+            "o2_sat",
+            "temperature",
+            "respiratory_rate",
+            "wbc",
+            "lactate",
+            "sirs_score",
+            "qsofa_score",
+            "sepsis_stage",
+            "sepsis_onset_ts",
+            "quality",
+            "source",
         }
         assert expected_keys == set(d.keys())
 
@@ -233,7 +245,7 @@ class TestBuildPayload:
             respiratory_rate=15.0,
             wbc=7.0,
             lactate=1.0,
-            quality=95,
+            quality="good",
             source="simulator",
         )
         assert p.sirs_score == 0
@@ -256,7 +268,7 @@ class TestBuildPayload:
             respiratory_rate=25.0,
             wbc=16.0,
             lactate=3.0,
-            quality=80,
+            quality="degraded",
             source="simulator",
         )
         assert p.sirs_score >= 2
@@ -266,15 +278,37 @@ class TestBuildPayload:
     def test_altered_mentation_flag(self):
         """altered_mentation=True adds 1 to qSOFA."""
         p_normal = build_payload(
-            patient_id="P001", scenario="sepsis", scenario_stage="sepsis",
-            timestamp=0, hr=110.0, bp_sys=110.0, bp_dia=70.0, o2_sat=93.0,
-            temperature=38.8, respiratory_rate=21.0, wbc=13.0, lactate=1.8,
-            quality=85, source="simulator", altered_mentation=False,
+            patient_id="P001",
+            scenario="sepsis",
+            scenario_stage="sepsis",
+            timestamp=0,
+            hr=110.0,
+            bp_sys=110.0,
+            bp_dia=70.0,
+            o2_sat=93.0,
+            temperature=38.8,
+            respiratory_rate=21.0,
+            wbc=13.0,
+            lactate=1.8,
+            quality="degraded",
+            source="simulator",
+            altered_mentation=False,
         )
         p_altered = build_payload(
-            patient_id="P001", scenario="sepsis", scenario_stage="sepsis",
-            timestamp=0, hr=110.0, bp_sys=110.0, bp_dia=70.0, o2_sat=93.0,
-            temperature=38.8, respiratory_rate=21.0, wbc=13.0, lactate=1.8,
-            quality=85, source="simulator", altered_mentation=True,
+            patient_id="P001",
+            scenario="sepsis",
+            scenario_stage="sepsis",
+            timestamp=0,
+            hr=110.0,
+            bp_sys=110.0,
+            bp_dia=70.0,
+            o2_sat=93.0,
+            temperature=38.8,
+            respiratory_rate=21.0,
+            wbc=13.0,
+            lactate=1.8,
+            quality="degraded",
+            source="simulator",
+            altered_mentation=True,
         )
         assert p_altered.qsofa_score == p_normal.qsofa_score + 1

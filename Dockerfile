@@ -14,7 +14,12 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 COPY tests/ ./tests/
+COPY contracts/ ./contracts/
 COPY mosquitto.conf /etc/mosquitto/mosquitto.conf
+
+# Install the vendored runtime schema at the device rootfs path expected by the app.
+RUN mkdir -p /usr/share/medtech/contracts/vitals && \
+    cp ./contracts/vitals/v2.0.json /usr/share/medtech/contracts/vitals/current.json
 
 # Startup script: launch mosquitto broker then the Python simulator
 COPY entrypoint.sh /entrypoint.sh

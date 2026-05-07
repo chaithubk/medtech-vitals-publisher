@@ -71,9 +71,7 @@ class TestSchemaPathResolution:
             import importlib
 
             importlib.reload(cfg_module)
-            assert cfg_module.VITALS_SCHEMA_PATH == (
-                "/usr/share/medtech/contracts/vitals/current.json"
-            )
+            assert cfg_module.VITALS_SCHEMA_PATH == ("/usr/share/medtech/contracts/vitals/current.json")
 
     def test_env_override_changes_path(self, tmp_path):
         """MEDTECH_VITALS_SCHEMA overrides the default schema path."""

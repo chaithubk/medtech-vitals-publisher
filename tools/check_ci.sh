@@ -86,6 +86,7 @@ need_cmd() {
 }
 
 run_docker_smoke_test() {
+
   local network_name="smoke-net-local-ci"
   local container_name="vitals-publisher-local-ci"
   local image_name="medtech-vitals-publisher:local-ci"
@@ -95,6 +96,10 @@ run_docker_smoke_test() {
     echo "Rebuild the container so Docker socket/features are applied."
     return 1
   fi
+
+  # Remove any existing container or network with the same name to avoid conflicts
+  docker rm -f "${container_name}" >/dev/null 2>&1 || true
+  docker network rm "${network_name}" >/dev/null 2>&1 || true
 
   docker network create "${network_name}" >/dev/null
 

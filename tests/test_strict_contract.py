@@ -215,6 +215,8 @@ class TestStrictValidateBeforePublish:
 
     def test_unreadable_schema_exits_nonzero(self, tmp_path):
         """sys.exit(1) is called when schema file cannot be read (OSError) in strict mode."""
+        if os.getuid() == 0:
+            pytest.skip("chmod 0o000 has no effect for root; skip this test when running as root")
         schema_file = tmp_path / "schema.json"
         schema_file.write_text("{}", encoding="utf-8")
         schema_file.chmod(0o000)  # make unreadable

@@ -214,17 +214,19 @@ python -m src --scenario sepsis --synthea-path data/synthea/csv --patient-id <uu
 
 ### Environment Variables
 
-| Variable             | Default     | Description                                        |
-|----------------------|-------------|----------------------------------------------------|
-| `MQTT_BROKER`        | `localhost` | Broker hostname or IP                              |
-| `MQTT_PORT`          | `1883`      | Broker TCP port                                    |
-| `SCENARIO`           | `healthy`   | Clinical scenario (`healthy`, `sepsis`, `critical`)|
-| `PATIENT_ID`         | `P001`      | Patient identifier in every v2 payload             |
-| `SYNTHEA_DATA_PATH`  | *(empty)*   | Path to Synthea `output/csv` directory             |
-| `SCENARIO_STAGE`     | *(empty)*   | Starting stage within scenario                     |
-| `SEED`               | `42`        | RNG seed for deterministic replay                  |
-| `PUBLISH_INTERVAL_S` | `10`        | Seconds between published readings                 |
-| `LOGLEVEL`           | `INFO`      | Logging verbosity                                  |
+| Variable                  | Default                                                | Description                                               |
+|---------------------------|--------------------------------------------------------|-----------------------------------------------------------|
+| `MQTT_BROKER`             | `localhost`                                            | Broker hostname or IP                                     |
+| `MQTT_PORT`               | `1883`                                                 | Broker TCP port                                           |
+| `SCENARIO`                | `healthy`                                              | Clinical scenario (`healthy`, `sepsis`, `critical`)       |
+| `PATIENT_ID`              | `P001`                                                 | Patient identifier in every v2 payload                    |
+| `SYNTHEA_DATA_PATH`       | *(empty)*                                              | Path to Synthea `output/csv` directory                    |
+| `SCENARIO_STAGE`          | *(empty)*                                              | Starting stage within scenario                            |
+| `SEED`                    | `42`                                                   | RNG seed for deterministic replay                         |
+| `PUBLISH_INTERVAL_S`      | `10`                                                   | Seconds between published readings                        |
+| `LOGLEVEL`                | `INFO`                                                 | Logging verbosity                                         |
+| `MEDTECH_VITALS_SCHEMA`   | `/usr/share/medtech/contracts/vitals/current.json`     | Runtime schema path (overrides device rootfs default)     |
+| `MEDTECH_STRICT_CONTRACT` | `0`                                                    | Set to `1` to enable strict contract enforcement (see below) |
 
 ## Telemetry Contract
 
@@ -270,6 +272,45 @@ python scripts/vendor_telemetry_contract.py --tag latest
 A scheduled workflow (`.github/workflows/contract-drift-check.yml`) runs daily
 and fails with a clear message when a newer tag exists in the central contract
 repo, prompting you to run the vendor workflow.
+
+### Runtime strict contract mode
+
+In production (Yocto image), the device rootfs ships the canonical schema at:
+
+```
+/usr/share/medtech/contracts/vitals/current.json
+```
+
+Setting `MEDTECH_STRICT_CONTRACT=1` enables **strict contract enforcement** of
+outbound messages:
+
+- The service loads the schema from `MEDTECH_VITALS_SCHEMA` (or the default
+  rootfs path) on startup.
+- Every payload is validated against that schema **before** it is published to
+  MQTT.
+- If the schema file is missing, unreadable, or not valid JSON → the service
+  **exits with code 1** (hard-fail).
+- If a payload does not conform to the schema → the service **exits with code 1**
+  (hard-fail).
+
+When `MEDTECH_STRICT_CONTRACT` is unset or `0` (the default), the runtime schema
+file is not consulted and publishing proceeds as before.  The vendored schema
+under `contracts/vitals/v2.0.json` is still used by CI tests in all cases.
+
+```bash
+# Enable strict mode, pointing at the device rootfs schema
+MEDTECH_STRICT_CONTRACT=1 python -m src --scenario healthy
+
+# Override the schema path (e.g. for local testing)
+MEDTECH_STRICT_CONTRACT=1 \
+  MEDTECH_VITALS_SCHEMA=/path/to/your/schema.json \
+  python -m src --scenario healthy
+```
+
+> **Yocto note:** on the final image the contract recipe installs the schema to
+> `/usr/share/medtech/contracts/vitals/current.json`.  All services that set
+> `MEDTECH_STRICT_CONTRACT=1` will automatically use that path without any
+> further configuration.
 
 
 

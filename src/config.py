@@ -41,6 +41,15 @@ SYNTHEA_DATA_PATH: str = os.environ.get("SYNTHEA_DATA_PATH", "")
 SCENARIO_STAGE: str = os.environ.get("SCENARIO_STAGE", "")
 SEED: int = _get_int_env("SEED", 42)
 
+# Runtime contract validation
+# Default path matches the Yocto rootfs install location; override with MEDTECH_VITALS_SCHEMA.
+VITALS_SCHEMA_PATH: str = os.environ.get(
+    "MEDTECH_VITALS_SCHEMA",
+    "/usr/share/medtech/contracts/vitals/current.json",
+)
+# Set MEDTECH_STRICT_CONTRACT=1 to enable hard-fail validation of outbound messages.
+STRICT_CONTRACT: bool = os.environ.get("MEDTECH_STRICT_CONTRACT", "0") == "1"
+
 # Vital-sign ranges and quality scores per scenario (v1 legacy — kept for backward
 # compatibility; v2 ranges are defined in src/progression.py)
 SCENARIOS: dict = {

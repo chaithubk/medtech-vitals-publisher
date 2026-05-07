@@ -185,16 +185,18 @@ class TestInitializeRuntimeSchema:
         """sys.exit(1) is called when schema file cannot be read (OSError)."""
         schema_file = tmp_path / "schema.json"
         schema_file.write_text("{}", encoding="utf-8")
-        schema_file.chmod(0o000)  # make unreadable
-        try:
-            with (
-                patch.object(cfg_module, "VITALS_SCHEMA_PATH", str(schema_file)),
-                pytest.raises(SystemExit) as exc_info,
-            ):
-                initialize_runtime_schema()
-            assert exc_info.value.code == 1
-        finally:
-            schema_file.chmod(0o644)  # restore for cleanup
+        # Patch load_runtime_schema to raise OSError: chmod 0o000 is not
+        # reliable when the test process runs as root (e.g. in a dev container).
+        with (
+            patch.object(cfg_module, "VITALS_SCHEMA_PATH", str(schema_file)),
+            patch(
+                "src.contract_validator.load_runtime_schema",
+                side_effect=OSError("Permission denied"),
+            ),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            initialize_runtime_schema()
+        assert exc_info.value.code == 1
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ from typing import Any, Dict, Iterator, Optional
 import paho.mqtt.client as mqtt
 
 from src import config
+from src.contract_validator import initialize_runtime_schema, validate_before_publish
 from src.progression import ProgressionEngine
 from src.schema import build_payload
 from src.synthea_bridge import SyntheaBridge
@@ -395,6 +396,9 @@ class VitalsSimulator:
             seed,
         )
 
+        # Load runtime schema once at startup; hard-fails if missing or malformed.
+        self._runtime_schema = initialize_runtime_schema()
+
     # ------------------------------------------------------------------
     # Internal: source construction
     # ------------------------------------------------------------------
@@ -533,6 +537,7 @@ class VitalsSimulator:
                 self.connect()
 
             vital = self._generate_vital()
+            validate_before_publish(vital, self._runtime_schema)
             payload = json.dumps(vital)
             success = self.mqtt_client.publish(config.MQTT_TOPIC, payload, qos=config.MQTT_QOS)
             if success:

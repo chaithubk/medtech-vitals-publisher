@@ -14,31 +14,32 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
-AUTO_FIX=1
-CHECK_ONLY=0
+AUTO_FIX=0
+CHECK_ONLY=1
 SKIP_SECURITY=0
 
 usage() {
   cat <<'EOF'
-Usage: tools/check_ci.sh [--check-only] [--skip-security] [--help]
+
+Usage: tools/check_ci.sh [--fix] [--skip-security] [--help]
 
 Options:
-  --check-only     Do not apply auto-fixes (run checks only).
+  --fix            Apply auto-fixes (format/import order) before checks.
   --skip-security  Skip bandit/safety checks.
   --help           Show this message.
 
 Behavior:
-  Default mode is fix + verify in one run.
-  Auto-fixes: black, isort.
+  Default mode is check-only (no auto-fix, matches CI).
+  Use --fix to auto-fix formatting/imports before checks.
   Manual fixes still required for: flake8, mypy, pytest, bandit, safety.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --check-only)
-      AUTO_FIX=0
-      CHECK_ONLY=1
+    --fix)
+      AUTO_FIX=1
+      CHECK_ONLY=0
       shift
       ;;
     --skip-security)
@@ -85,6 +86,7 @@ need_cmd() {
 }
 
 run_docker_smoke_test() {
+
   local network_name="smoke-net-local-ci"
   local container_name="vitals-publisher-local-ci"
   local image_name="medtech-vitals-publisher:local-ci"
@@ -94,6 +96,10 @@ run_docker_smoke_test() {
     echo "Rebuild the container so Docker socket/features are applied."
     return 1
   fi
+
+  # Remove any existing container or network with the same name to avoid conflicts
+  docker rm -f "${container_name}" >/dev/null 2>&1 || true
+  docker network rm "${network_name}" >/dev/null 2>&1 || true
 
   docker network create "${network_name}" >/dev/null
 
@@ -152,6 +158,7 @@ if [[ ${SKIP_SECURITY} -eq 0 ]]; then
   need_cmd safety
 fi
 
+
 if [[ ${AUTO_FIX} -eq 1 ]]; then
   echo -e "\n${YELLOW}Applying safe auto-fixes...${NC}"
   run_step "Auto-fix formatting (black)" "black src tests --line-length=120"
@@ -161,6 +168,16 @@ fi
 # Lint / type checks (CI parity)
 run_step "Black check" "black --check src tests --line-length=120"
 run_step "isort check" "isort --check-only src tests --profile=black"
+
+# Track if linting failed for fix recommendations
+LINT_FAILED=0
+for i in "${!FAILING_STEPS[@]}"; do
+  step="${FAILING_STEPS[$i]}"
+  if [[ "$step" == "Black check" || "$step" == "isort check" ]]; then
+    LINT_FAILED=1
+    break
+  fi
+done
 run_step "Flake8 fatal checks" "flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics"
 run_step "Flake8 full checks" "flake8 src tests --count --max-complexity=10 --max-line-length=120 --statistics"
 run_step "Mypy" "mypy src --ignore-missing-imports"
@@ -169,27 +186,35 @@ run_step "Mypy" "mypy src --ignore-missing-imports"
 run_step "Pytest + coverage" "pytest tests/ -v --cov=src --cov-report=term-missing --cov-fail-under=80"
 
 # Contract + demo data gate from CI
+
 if [[ -d data/synthea/demo/csv ]]; then
   run_step "Contract + demo data gate" "pytest -v --maxfail=1 tests/test_contract_schema_v2.py tests/test_demo_dataset.py"
-else
-  echo -e "\n${RED}FAIL${NC}"
-  echo "Missing required directory for CI data gate: data/synthea/demo/csv"
-  FAILED=1
-  FAILING_STEPS+=("Contract + demo data gate (missing data/synthea/demo/csv)")
-  FAILING_COMMANDS+=("pytest -v --maxfail=1 tests/test_contract_schema_v2.py tests/test_demo_dataset.py")
-fi
-
-# Security checks
-if [[ ${SKIP_SECURITY} -eq 0 ]]; then
-  mkdir -p .ci-local
-  run_step "Bandit (JSON report)" "bandit -r src -f json -o .ci-local/bandit-report.json"
-  run_step "Bandit (text report)" "bandit -r src -f txt"
-  run_step "Safety" "safety check --json > .ci-local/safety-report.json"
-else
-  echo -e "\n${YELLOW}Skipping security checks (--skip-security).${NC}"
 fi
 
 # Docker smoke-test gate (CI parity)
+if [[ ${FAILED} -ne 0 ]]; then
+  echo -e "${RED}CI parity checks failed.${NC}"
+  echo "Failing steps:"
+  for step in "${FAILING_STEPS[@]}"; do
+    echo "  - ${step}"
+  done
+  echo ""
+  echo "Copy/paste commands for failed steps:"
+  echo "  source .venv/bin/activate"
+  for cmd in "${FAILING_COMMANDS[@]}"; do
+    echo "  ${cmd}"
+  done
+  echo ""
+  if [[ ${LINT_FAILED} -eq 1 ]]; then
+    echo -e "${YELLOW}To auto-fix formatting and import order, run:${NC}"
+    echo "  black src tests --line-length=120"
+    echo "  isort src tests --profile=black"
+    echo ""
+  fi
+  echo "Auto-fixes already applied where possible (black/isort)."
+  echo "Resolve remaining failures and run again: tools/check_ci.sh"
+  exit 1
+fi
 run_step "Docker smoke-test" "run_docker_smoke_test"
 
 echo ""

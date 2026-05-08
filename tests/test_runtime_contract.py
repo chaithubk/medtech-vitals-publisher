@@ -51,9 +51,11 @@ def _make_valid_payload() -> dict:
         respiratory_rate=raw["respiratory_rate"],
         wbc=raw["wbc"],
         lactate=raw["lactate"],
+        creatinine=raw["creatinine"],
         quality=raw["quality"],
         source="simulator",
         sepsis_onset_ts=None,
+        altered_mentation=raw.get("altered_mentation", False),
     ).to_dict()
 
 

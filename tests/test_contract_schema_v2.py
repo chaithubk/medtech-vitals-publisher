@@ -61,9 +61,11 @@ def _generate_payload(scenario: str, stage: str | None = None) -> dict:
         respiratory_rate=raw["respiratory_rate"],
         wbc=raw["wbc"],
         lactate=raw["lactate"],
+        creatinine=raw["creatinine"],
         quality=raw["quality"],
         source="simulator",
         sepsis_onset_ts=raw.get("sepsis_onset_ts"),
+        altered_mentation=raw.get("altered_mentation", False),
     )
     return payload.to_dict()
 
@@ -89,9 +91,11 @@ def _generate_synthea_payload(patient_id: str) -> tuple[dict, dict]:
         respiratory_rate=raw["respiratory_rate"],
         wbc=raw["wbc"],
         lactate=raw["lactate"],
+        creatinine=raw.get("creatinine", 0.9),
         quality=raw["quality"],
         source="synthea",
         sepsis_onset_ts=raw.get("sepsis_onset_ts"),
+        altered_mentation=raw.get("altered_mentation", False),
     )
     return payload.to_dict(), raw
 

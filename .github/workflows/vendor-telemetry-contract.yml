@@ -35,7 +35,7 @@ jobs:
       - name: Resolve target tag
         id: resolve
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CD_PAT }}
           INPUT_TAG: ${{ inputs.tag || github.event.inputs.tag }}
         run: |
           if [ -n "$INPUT_TAG" ]; then
@@ -95,7 +95,7 @@ jobs:
       - name: Create branch, commit, and open PR
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.CD_PAT }}
           TAG: ${{ steps.resolve.outputs.tag }}
         run: |
           BRANCH="chore/vendor-telemetry-contract-${TAG}"

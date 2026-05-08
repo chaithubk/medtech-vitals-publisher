@@ -44,6 +44,7 @@ def test_v2_payload_smoke():
         respiratory_rate=22.0,
         wbc=14.0,
         lactate=2.2,
+        creatinine=1.5,
         quality="degraded",
         source="simulator",
     )

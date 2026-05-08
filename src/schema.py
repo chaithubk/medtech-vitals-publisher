@@ -6,25 +6,27 @@ required by downstream edge-analytics consumers.
 
 v2 Payload Fields
 -----------------
-version          : "2.0" – schema version sentinel
-patient_id       : str   – patient identifier (e.g. "P001")
-scenario         : str   – active clinical scenario label
-scenario_stage   : str   – progression stage within scenario
-timestamp        : int   – ms-epoch wall-clock time
-hr               : float – heart rate (bpm)
-bp_sys           : float – systolic blood pressure (mmHg)
-bp_dia           : float – diastolic blood pressure (mmHg)
-o2_sat           : float – peripheral O2 saturation (%)
-temperature      : float – core body temperature (°C)
-respiratory_rate : float – breaths per minute
-wbc              : float – white blood cell count (×10³/µL), simulated
-lactate          : float – serum lactate (mmol/L), simulated
-sirs_score       : int   – SIRS criteria met (0-4)
-qsofa_score      : int   – qSOFA score (0-3)
-sepsis_stage     : str   – 'none' | 'sirs' | 'sepsis' | 'septic_shock'
-sepsis_onset_ts  : int | None – ms-epoch when sepsis first detected (None if not yet)
-quality          : str   – signal quality indicator ('good' | 'degraded' | 'poor')
-source           : str   – data source label
+version           : "2.0" – schema version sentinel
+patient_id        : str   – patient identifier (e.g. "P001")
+scenario          : str   – active clinical scenario label
+scenario_stage    : str   – progression stage within scenario
+timestamp         : int   – ms-epoch wall-clock time
+hr                : float – heart rate (bpm)
+bp_sys            : float – systolic blood pressure (mmHg)
+bp_dia            : float – diastolic blood pressure (mmHg)
+o2_sat            : float – peripheral O2 saturation (%)
+temperature       : float – core body temperature (°C)
+respiratory_rate  : float – breaths per minute
+wbc               : float – white blood cell count (×10³/µL), simulated
+lactate           : float – serum lactate (mmol/L), simulated
+creatinine        : float – serum creatinine (mg/dL), organ dysfunction marker
+altered_mentation : bool  – True when GCS < 15 (qSOFA mental-status criterion)
+sirs_score        : int   – SIRS criteria met (0-4)
+qsofa_score       : int   – qSOFA score (0-3)
+sepsis_stage      : str   – 'none' | 'sirs' | 'sepsis' | 'septic_shock'
+sepsis_onset_ts   : int | None – ms-epoch when sepsis first detected (None if not yet)
+quality           : str   – signal quality indicator ('good' | 'degraded' | 'poor')
+source            : str   – data source label
 """
 
 from __future__ import annotations
@@ -162,6 +164,8 @@ class VitalsPayloadV2:
         respiratory_rate: Respiratory rate in breaths/min.
         wbc: White blood cell count ×10³/µL (simulated).
         lactate: Serum lactate mmol/L (simulated).
+        creatinine: Serum creatinine mg/dL (organ dysfunction marker).
+        altered_mentation: True when GCS < 15 (qSOFA mental-status criterion).
         sirs_score: SIRS criteria count (0-4).
         qsofa_score: qSOFA score (0-3).
         sepsis_stage: Classified stage string.
@@ -183,6 +187,8 @@ class VitalsPayloadV2:
     respiratory_rate: float
     wbc: float
     lactate: float
+    creatinine: float
+    altered_mentation: bool
     sirs_score: int
     qsofa_score: int
     sepsis_stage: str
@@ -213,6 +219,7 @@ def build_payload(
     respiratory_rate: float,
     wbc: float,
     lactate: float,
+    creatinine: float,
     quality: str,
     source: str,
     sepsis_onset_ts: Optional[int] = None,
@@ -236,10 +243,11 @@ def build_payload(
         respiratory_rate: Respiratory rate in breaths/min.
         wbc: White blood cell count ×10³/µL.
         lactate: Serum lactate mmol/L.
+        creatinine: Serum creatinine mg/dL (organ dysfunction marker).
         quality: Signal quality indicator string (e.g. 'good', 'degraded', 'poor').
         source: Data source label.
         sepsis_onset_ts: ms-epoch of first sepsis onset, or None.
-        altered_mentation: True when GCS < 15.
+        altered_mentation: True when GCS < 15 (qSOFA mental-status criterion).
 
     Returns:
         Fully populated :class:`VitalsPayloadV2` instance.
@@ -262,6 +270,8 @@ def build_payload(
         respiratory_rate=respiratory_rate,
         wbc=wbc,
         lactate=lactate,
+        creatinine=creatinine,
+        altered_mentation=altered_mentation,
         sirs_score=sirs,
         qsofa_score=qsofa,
         sepsis_stage=stage,

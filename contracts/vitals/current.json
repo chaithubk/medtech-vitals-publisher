@@ -19,6 +19,8 @@
     "respiratory_rate",
     "wbc",
     "lactate",
+    "creatinine",
+    "altered_mentation",
     "sirs_score",
     "qsofa_score",
     "sepsis_stage",
@@ -38,12 +40,22 @@
     },
     "scenario": {
       "type": "string",
-      "enum": ["healthy", "sepsis", "critical"],
+      "enum": [
+        "healthy",
+        "sepsis",
+        "critical"
+      ],
       "description": "The clinical scenario being simulated or observed."
     },
     "scenario_stage": {
       "type": "string",
-      "enum": ["healthy", "pre_sepsis", "sepsis_onset", "sepsis", "septic_shock"],
+      "enum": [
+        "healthy",
+        "pre_sepsis",
+        "sepsis_onset",
+        "sepsis",
+        "septic_shock"
+      ],
       "description": "Current stage within the scenario trajectory."
     },
     "timestamp": {
@@ -91,6 +103,15 @@
       "description": "Blood lactate level in millimoles per litre (mmol/L).",
       "minimum": 0
     },
+    "creatinine": {
+      "type": "number",
+      "description": "Serum creatinine in milligrams per decilitre (mg/dL). Elevated values indicate organ dysfunction.",
+      "minimum": 0
+    },
+    "altered_mentation": {
+      "type": "boolean",
+      "description": "True when Glasgow Coma Scale (GCS) < 15, indicating altered mental status (qSOFA mental-status criterion)."
+    },
     "sirs_score": {
       "type": "integer",
       "description": "Systemic Inflammatory Response Syndrome (SIRS) score (0–4).",
@@ -105,7 +126,12 @@
     },
     "sepsis_stage": {
       "type": "string",
-      "enum": ["none", "sirs", "sepsis", "septic_shock"],
+      "enum": [
+        "none",
+        "sirs",
+        "sepsis",
+        "septic_shock"
+      ],
       "description": "Algorithmic sepsis classification derived from vitals and lab values."
     },
     "sepsis_onset_ts": {

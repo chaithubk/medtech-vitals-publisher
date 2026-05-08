@@ -516,9 +516,11 @@ class VitalsSimulator:
             respiratory_rate=raw["respiratory_rate"],
             wbc=raw["wbc"],
             lactate=raw["lactate"],
+            creatinine=raw["creatinine"],
             quality=raw["quality"],
             source=self._source,
             sepsis_onset_ts=raw.get("sepsis_onset_ts"),
+            altered_mentation=raw.get("altered_mentation", False),
         )
         return payload.to_dict()
 

@@ -309,6 +309,8 @@ class TestLoadPatient:
             "respiratory_rate",
             "wbc",
             "lactate",
+            "creatinine",
+            "altered_mentation",
             "quality",
             "sepsis_onset_ts",
         }

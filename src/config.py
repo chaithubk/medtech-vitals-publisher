@@ -33,7 +33,7 @@ MQTT_STATUS_TOPIC: str = "medtech/vitals/status"
 MQTT_QOS: int = 1
 
 # Publishing cadence (override with PUBLISH_INTERVAL_S env var or --interval CLI flag)
-PUBLISH_INTERVAL_S: int = _get_int_env("PUBLISH_INTERVAL_S", 10)
+PUBLISH_INTERVAL_S: int = _get_int_env("PUBLISH_INTERVAL_S", 1)
 
 # Patient / simulation settings
 PATIENT_ID: str = os.environ.get("PATIENT_ID", "P001")

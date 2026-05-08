@@ -6,10 +6,18 @@ on:
     - cron: "0 8 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   drift-check:
     name: Check for new telemetry contract tag
     runs-on: ubuntu-latest
+    outputs:
+      drift: ${{ steps.compare.outputs.drift }}
+      pinned: ${{ steps.pinned.outputs.version }}
+      latest: ${{ steps.latest.outputs.latest }}
 
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +45,7 @@ jobs:
           echo "Latest contract tag:  $LATEST"
 
       - name: Compare versions
+        id: compare
         env:
           PINNED: ${{ steps.pinned.outputs.version }}
           LATEST: ${{ steps.latest.outputs.latest }}
@@ -44,21 +53,24 @@ jobs:
           echo "Pinned : $PINNED"
           echo "Latest : $LATEST"
           if [ "$PINNED" = "$LATEST" ]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
             echo "✅ Contract is up to date (pinned == latest: $PINNED)."
           else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
             echo ""
-            echo "❌ Contract drift detected!"
+            echo "⚠️  Contract drift detected."
             echo ""
             echo "   Current pin : $PINNED"
             echo "   Latest tag  : $LATEST"
             echo ""
-            echo "Action required:"
-            echo "  A new telemetry contract tag ($LATEST) is available."
-            echo "  To update the vendored schema, run the 'Vendor Telemetry Contract'"
-            echo "  workflow from the Actions tab (Actions → Vendor Telemetry Contract"
-            echo "  → Run workflow) and merge the resulting PR."
-            echo ""
-            echo "  Alternatively, run locally:"
-            echo "    python scripts/vendor_telemetry_contract.py --tag $LATEST"
-            exit 1
+            echo "An automated vendoring PR will be created for tag $LATEST."
           fi
+
+  auto-vendor:
+    name: Auto-create contract update PR
+    needs: drift-check
+    if: needs.drift-check.outputs.drift == 'true'
+    uses: ./.github/workflows/vendor-telemetry-contract.yml
+    with:
+      tag: ${{ needs.drift-check.outputs.latest }}
+    secrets: inherit

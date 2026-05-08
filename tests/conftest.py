@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-_VENDORED_SCHEMA = Path(__file__).parent.parent / "contracts" / "vitals" / "v2.0.json"
+_VENDORED_SCHEMA = Path(__file__).parent.parent / "contracts" / "vitals" / "current.json"
 
 
 @pytest.fixture(autouse=True)

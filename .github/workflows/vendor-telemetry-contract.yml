@@ -60,7 +60,7 @@ jobs:
         run: |
           python scripts/vendor_telemetry_contract.py --tag "${{ steps.resolve.outputs.tag }}"
 
-      - name: Bump CD revision
+      - name: Set CD version to contract tag
         run: |
           if git diff --quiet -- contracts/vitals/current.json contracts/VITALS_CONTRACT_VERSION.txt; then
             echo "No contract file changes detected; skipping CD revision bump."
@@ -68,17 +68,9 @@ jobs:
           fi
 
           VERSION_FILE="src/__init__.py"
-          CURRENT=$(sed -nE 's/^__version__ = "([0-9]+\.[0-9]+\.[0-9]+)"/\1/p' "$VERSION_FILE")
-          if [ -z "$CURRENT" ]; then
-            echo "❌ Could not parse __version__ from $VERSION_FILE"
-            exit 1
-          fi
-
-          IFS='.' read -r major minor patch <<< "$CURRENT"
-          NEXT="${major}.${minor}.$((patch + 1))"
-
-          sed -i -E "s/^__version__ = \"[0-9]+\.[0-9]+\.[0-9]+\"/__version__ = \"${NEXT}\"/" "$VERSION_FILE"
-          echo "Bumped CD revision: $CURRENT -> $NEXT"
+          NEW_VERSION="${{ steps.resolve.outputs.tag#v }}"
+          sed -i -E "s/^__version__ = \".*\"/__version__ = \"${NEW_VERSION}\"/" "$VERSION_FILE"
+          echo "Set __version__ to $NEW_VERSION"
 
       - name: Check for changes
         id: changes

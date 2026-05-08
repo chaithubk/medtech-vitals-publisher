@@ -32,6 +32,8 @@ _REQUIRED_FIELDS = {
     "respiratory_rate",
     "wbc",
     "lactate",
+    "creatinine",
+    "altered_mentation",
     "sirs_score",
     "qsofa_score",
     "sepsis_stage",
@@ -130,13 +132,31 @@ def test_v2_json_schema():
         assert isinstance(vital["timestamp"], int)
         assert isinstance(vital["quality"], str)
         # All numeric vitals must be float or int
-        for f in ("hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "respiratory_rate", "wbc", "lactate"):
+        for f in (
+            "hr",
+            "bp_sys",
+            "bp_dia",
+            "o2_sat",
+            "temperature",
+            "respiratory_rate",
+            "wbc",
+            "lactate",
+        ):
             assert isinstance(vital[f], (int, float)), f"{f} is not numeric (scenario={scenario})"
 
 
 def test_json_schema():
     """ScenarioFactory (legacy v1) still returns required v1 fields."""
-    v1_required = {"timestamp", "hr", "bp_sys", "bp_dia", "o2_sat", "temperature", "quality", "source"}
+    v1_required = {
+        "timestamp",
+        "hr",
+        "bp_sys",
+        "bp_dia",
+        "o2_sat",
+        "temperature",
+        "quality",
+        "source",
+    }
     for factory_fn in (
         ScenarioFactory.healthy,
         ScenarioFactory.sepsis,

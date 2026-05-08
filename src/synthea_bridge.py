@@ -85,6 +85,7 @@ _LOINC_MAP: Dict[str, Tuple[str, float, float]] = {
     "9279-1": ("respiratory_rate", 1.0, 16.0),
     "6690-2": ("wbc", 1.0, 7.5),  # ×10³/µL
     "2524-7": ("lactate", 1.0, 1.0),  # mmol/L
+    "2160-0": ("creatinine", 1.0, 0.9),  # mg/dL
 }
 
 # ---------------------------------------------------------------------------
@@ -261,6 +262,8 @@ class SyntheaBridge:
                 "respiratory_rate": obs.get("respiratory_rate", fb["respiratory_rate"]),
                 "wbc": obs.get("wbc", fb["wbc"]),
                 "lactate": obs.get("lactate", fb["lactate"]),
+                "creatinine": obs.get("creatinine", fb.get("creatinine", 0.9)),
+                "altered_mentation": fb.get("altered_mentation", False),
                 "quality": fb.get("quality", "good"),
                 "sepsis_onset_ts": fb.get("sepsis_onset_ts"),
             }
@@ -306,10 +309,10 @@ class SyntheaBridge:
         if len(readings) > 1:
             span_ms = readings[-1]["timestamp"] - readings[0]["timestamp"]
             # Guard: if all readings share the same timestamp, fall back to default interval
-            avg_interval_ms = span_ms // (len(readings) - 1) if span_ms > 0 else 10_000
-            loop_offset_ms = max(10_000, span_ms + avg_interval_ms)
+            avg_interval_ms = span_ms // (len(readings) - 1) if span_ms > 0 else 1_000
+            loop_offset_ms = max(1_000, span_ms + avg_interval_ms)
         else:
-            loop_offset_ms = 10_000  # default 10 s when only one reading
+            loop_offset_ms = 1_000  # default 1 s when only one reading
 
         now_ms = int(time.time() * 1000)
         base_ts = readings[0]["timestamp"]

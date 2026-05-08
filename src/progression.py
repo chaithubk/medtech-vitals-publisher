@@ -41,6 +41,8 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (12.0, 18.0),
         "wbc": (4.5, 10.0),
         "lactate": (0.5, 1.5),
+        "creatinine": (0.6, 1.1),
+        "altered_mentation": False,
         "quality": "good",
     },
     "pre_sepsis": {
@@ -52,6 +54,8 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (16.0, 22.0),
         "wbc": (10.0, 15.0),
         "lactate": (1.0, 2.0),
+        "creatinine": (0.9, 1.4),
+        "altered_mentation": False,
         "quality": "good",
     },
     "sepsis_onset": {
@@ -63,6 +67,8 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (20.0, 26.0),
         "wbc": (13.0, 18.0),
         "lactate": (1.5, 3.0),
+        "creatinine": (1.3, 2.0),
+        "altered_mentation": False,
         "quality": "degraded",
     },
     "sepsis": {
@@ -74,6 +80,8 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (24.0, 30.0),
         "wbc": (15.0, 22.0),
         "lactate": (2.5, 4.5),
+        "creatinine": (1.8, 3.5),
+        "altered_mentation": True,
         "quality": "degraded",
     },
     "septic_shock": {
@@ -85,6 +93,8 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
         "rr": (28.0, 38.0),
         "wbc": (18.0, 30.0),
         "lactate": (4.0, 8.0),
+        "creatinine": (3.0, 6.5),
+        "altered_mentation": True,
         "quality": "poor",
     },
 }
@@ -204,6 +214,7 @@ class ProgressionEngine:
         self._rr = _midpoint(*params["rr"])
         self._wbc = _midpoint(*params["wbc"])
         self._lactate = _midpoint(*params["lactate"])
+        self._creatinine = _midpoint(*params["creatinine"])
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -285,6 +296,7 @@ class ProgressionEngine:
         self._rr = self._drift_toward(self._rr, *params["rr"])
         self._wbc = self._drift_toward(self._wbc, *params["wbc"])
         self._lactate = self._drift_toward(self._lactate, *params["lactate"])
+        self._creatinine = self._drift_toward(self._creatinine, *params["creatinine"])
 
         timestamp = ts if ts is not None else int(time.time() * 1000)
 
@@ -306,12 +318,14 @@ class ProgressionEngine:
             "respiratory_rate": self._rr,
             "wbc": self._wbc,
             "lactate": self._lactate,
+            "creatinine": self._creatinine,
+            "altered_mentation": params["altered_mentation"],
             "quality": params["quality"],
             "sepsis_onset_ts": self._sepsis_onset_ts,
         }
 
     def generate_sequence(
-        self, n: int, start_ts: Optional[int] = None, interval_ms: int = 10_000
+        self, n: int, start_ts: Optional[int] = None, interval_ms: int = 1_000
     ) -> List[Dict[str, Any]]:
         """Generate *n* consecutive readings spaced *interval_ms* apart.
 
@@ -320,7 +334,7 @@ class ProgressionEngine:
         Args:
             n: Number of readings to generate.
             start_ts: Optional starting ms-epoch timestamp.  Uses wall-clock when None.
-            interval_ms: Interval between readings in milliseconds (default 10 000).
+            interval_ms: Interval between readings in milliseconds (default 1 000).
 
         Returns:
             List of reading dicts as returned by :meth:`next_reading`.

@@ -30,7 +30,8 @@ from src.schema import build_payload
 # Helpers
 # ---------------------------------------------------------------------------
 
-_VENDORED_SCHEMA = Path(__file__).parent.parent / "contracts" / "vitals" / "v2.0.json"
+
+_VENDORED_SCHEMA = Path(__file__).parent.parent / "contracts" / "vitals" / "current.json"
 
 
 def _make_valid_payload() -> dict:

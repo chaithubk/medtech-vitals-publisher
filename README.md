@@ -237,12 +237,12 @@ environments:
 
 | File | Purpose |
 |------|---------|
-| `contracts/vitals/v2.0.json` | Vendored JSON Schema (source of truth for validation) |
-| `contracts/VITALS_CONTRACT_VERSION.txt` | Pinned contract tag (currently `v2.0.0`) |
+| `contracts/vitals/current.json` | Active vendored JSON Schema used by CI/runtime packaging |
+| `contracts/VITALS_CONTRACT_VERSION.txt` | Pinned upstream contract tag |
 | `contracts/README.md` | Update procedure and policy |
 
 > **Policy:** Every v2 payload published by this service must validate against
-> `contracts/vitals/v2.0.json`.  CI enforces this via
+> `contracts/vitals/current.json`.  CI enforces this via
 > `tests/test_contract_schema_v2.py`.
 
 ### Updating the vendored schema
@@ -269,8 +269,8 @@ python scripts/vendor_telemetry_contract.py --tag latest
 ### Drift detection
 
 A scheduled workflow (`.github/workflows/contract-drift-check.yml`) runs daily
-and fails with a clear message when a newer tag exists in the central contract
-repo, prompting you to run the vendor workflow.
+and when a newer tag exists, automatically triggers the vendoring workflow to
+open/update a PR with the schema update and version bumps.
 
 ### Runtime contract enforcement
 
@@ -299,7 +299,7 @@ MEDTECH_VITALS_SCHEMA=/path/to/your/schema.json python -m src --scenario healthy
 > `/usr/share/medtech/contracts/vitals/current.json`.  Setting
 > `MEDTECH_VITALS_SCHEMA` is only necessary when the schema lives at a
 > non-default location (e.g. local development or alternative rootfs layouts).
-> The vendored CI schema (`contracts/vitals/v2.0.json`) is used by CI tests
+> The vendored CI schema (`contracts/vitals/current.json`) is used by CI tests
 > and is unaffected by the runtime path.
 
 

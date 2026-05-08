@@ -2,7 +2,7 @@
 """Deterministic vendoring script for the MedTech telemetry contract schema.
 
 Downloads the vitals JSON Schema from ``chaithubk/medtech-telemetry-contract``
-at a specific git tag and writes it to ``contracts/vitals/v2.0.json``, also
+at a specific git tag and writes it to ``contracts/vitals/current.json``, also
 updating the pin file ``contracts/VITALS_CONTRACT_VERSION.txt``.
 
 Usage::
@@ -17,31 +17,19 @@ Usage::
     python scripts/vendor_telemetry_contract.py --tag latest
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
 REPO_OWNER = "chaithubk"
 REPO_NAME = "medtech-telemetry-contract"
-SCHEMA_SOURCE_PATH = "schemas/vitals/v2.0.json"
-
 REPO_ROOT = Path(__file__).parent.parent
 CONTRACT_DIR = REPO_ROOT / "contracts"
 VERSION_FILE = CONTRACT_DIR / "VITALS_CONTRACT_VERSION.txt"
-SCHEMA_DEST = CONTRACT_DIR / "vitals" / "v2.0.json"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+SCHEMA_DEST = CONTRACT_DIR / "vitals" / "current.json"
 
 
 def _read_pinned_tag() -> str:
@@ -60,7 +48,9 @@ def _fetch_latest_tag() -> str:
     except Exception:
         # Fall back to listing tags if there are no GitHub releases
         url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/tags"
-        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+        req = urllib.request.Request(
+            url, headers={"Accept": "application/vnd.github+json"}
+        )
         with urllib.request.urlopen(req, timeout=15) as resp:
             tags = json.loads(resp.read())
             if not tags:
@@ -68,25 +58,40 @@ def _fetch_latest_tag() -> str:
             return tags[0]["name"]
 
 
-def _download_schema(tag: str) -> str:
-    """Download the raw schema JSON for *tag* and return it as a string."""
-    url = (
-        f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}"
-        f"/{tag}/{SCHEMA_SOURCE_PATH}"
+def source_schema_candidates_for_tag(tag: str) -> list[str]:
+    """Return upstream schema paths to try for a specific tag."""
+    candidates: list[str] = []
+    if tag.startswith("v") and tag.count(".") == 2:
+        major_minor = tag[1:].rsplit(".", 1)[0]
+        candidates.append(f"schemas/vitals/v{major_minor}.json")
+    candidates.append("schemas/vitals/current.json")
+    return candidates
+
+
+def _download_schema(tag: str) -> tuple[str, str]:
+    """Download schema JSON for *tag* and return ``(raw_json, source_path)``."""
+    last_exc: Exception | None = None
+    for source_path in source_schema_candidates_for_tag(tag):
+        url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/{tag}/{source_path}"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.read().decode("utf-8"), source_path
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            if exc.code == 404:
+                continue
+            raise
+    candidates = ", ".join(source_schema_candidates_for_tag(tag))
+    raise RuntimeError(
+        f"Could not locate schema in {REPO_OWNER}/{REPO_NAME}@{tag}. "
+        f"Tried: {candidates}. Last error: {last_exc}"
     )
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return resp.read().decode("utf-8")
 
 
 def _pretty_json(raw: str) -> str:
     """Normalise JSON to 2-space indented form with a trailing newline."""
     return json.dumps(json.loads(raw), indent=2, ensure_ascii=False) + "\n"
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -117,31 +122,35 @@ def main(argv: list[str] | None = None) -> int:
 
     # Download the schema
     print(f"Downloading schema from {REPO_OWNER}/{REPO_NAME}@{tag} ...")
-    raw = _download_schema(tag)
+    raw, source_path = _download_schema(tag)
+    print(f"Resolved source schema path: {source_path}")
     normalised = _pretty_json(raw)
 
     # Compare with the existing vendored copy
+    schema_dest = SCHEMA_DEST
     changed_schema = False
-    if SCHEMA_DEST.exists():
-        existing = SCHEMA_DEST.read_text()
+    if schema_dest.exists():
+        existing = schema_dest.read_text()
         if existing == normalised:
-            print(f"  contracts/vitals/v2.0.json — no change")
+            print(f"  {schema_dest.relative_to(REPO_ROOT)} — no change")
         else:
             changed_schema = True
-            print(f"  contracts/vitals/v2.0.json — UPDATED")
+            print(f"  {schema_dest.relative_to(REPO_ROOT)} — UPDATED")
     else:
         changed_schema = True
-        print(f"  contracts/vitals/v2.0.json — CREATED")
+        print(f"  {schema_dest.relative_to(REPO_ROOT)} — CREATED")
 
     if changed_schema:
-        SCHEMA_DEST.parent.mkdir(parents=True, exist_ok=True)
-        SCHEMA_DEST.write_text(normalised)
+        schema_dest.parent.mkdir(parents=True, exist_ok=True)
+        schema_dest.write_text(normalised)
 
     # Update the pin file
     current_pin = _read_pinned_tag() if VERSION_FILE.exists() else ""
     if current_pin != tag:
         VERSION_FILE.write_text(tag + "\n")
-        print(f"  contracts/VITALS_CONTRACT_VERSION.txt — updated {current_pin!r} → {tag!r}")
+        print(
+            f"  contracts/VITALS_CONTRACT_VERSION.txt — updated {current_pin!r} → {tag!r}"
+        )
     else:
         print(f"  contracts/VITALS_CONTRACT_VERSION.txt — no change ({tag})")
 

@@ -68,7 +68,13 @@ jobs:
           fi
 
           VERSION_FILE="src/__init__.py"
-          NEW_VERSION="${{ steps.resolve.outputs.tag#v }}"
+          RAW_TAG="${{ steps.resolve.outputs.tag }}"
+          # Remove leading 'v' if present (robust for v2.1.0 or 2.1.0)
+          if [[ "$RAW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            NEW_VERSION="${RAW_TAG:1}"
+          else
+            NEW_VERSION="$RAW_TAG"
+          fi
           sed -i -E "s/^__version__ = \".*\"/__version__ = \"${NEW_VERSION}\"/" "$VERSION_FILE"
           echo "Set __version__ to $NEW_VERSION"
 

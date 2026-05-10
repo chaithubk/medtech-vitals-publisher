@@ -44,7 +44,10 @@ def bridge() -> SyntheaBridge:
 
 @pytest.fixture(scope="module")
 def engine() -> ProgressionEngine:
-    return ProgressionEngine(scenario="sepsis", seed=42)
+    return ProgressionEngine(
+        scenario="sepsis",
+        seed=42,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -55,19 +58,30 @@ def engine() -> ProgressionEngine:
 class TestDemoCsvStructure:
     """Verify the expected files and row counts in the demo dataset."""
 
-    def test_observations_csv_exists(self):
+    def test_observations_csv_exists(
+        self,
+    ):
         assert (DEMO_CSV / "observations.csv").exists()
 
-    def test_patients_csv_exists(self):
+    def test_patients_csv_exists(
+        self,
+    ):
         assert (DEMO_CSV / "patients.csv").exists()
 
-    def test_conditions_csv_exists(self):
+    def test_conditions_csv_exists(
+        self,
+    ):
         assert (DEMO_CSV / "conditions.csv").exists()
 
-    def test_manifest_json_exists(self):
+    def test_manifest_json_exists(
+        self,
+    ):
         assert (DEMO_CSV / "manifest.json").exists()
 
-    def test_population_is_ten(self, bridge):
+    def test_population_is_ten(
+        self,
+        bridge,
+    ):
         patients = bridge.list_patients()
         assert len(patients) == 10, f"Expected 10 patients, got {len(patients)}"
 
@@ -80,24 +94,40 @@ class TestDemoCsvStructure:
 class TestSepsisPatientDetection:
     """The demo dataset has exactly one sepsis patient identifiable via conditions.csv."""
 
-    def test_conditions_csv_identifies_sepsis_patient(self, bridge):
+    def test_conditions_csv_identifies_sepsis_patient(
+        self,
+        bridge,
+    ):
         from_conditions = bridge.list_sepsis_patients_from_conditions()
         assert (
             DEMO_SEPSIS_PATIENT in from_conditions
         ), f"Expected {DEMO_SEPSIS_PATIENT} in conditions-based list, got {from_conditions}"
 
-    def test_list_sepsis_patients_returns_sepsis_patient(self, bridge):
+    def test_list_sepsis_patients_returns_sepsis_patient(
+        self,
+        bridge,
+    ):
         """list_sepsis_patients() includes the conditions.csv patient even without LOINC vitals."""
         sepsis_list = bridge.list_sepsis_patients()
         assert DEMO_SEPSIS_PATIENT in sepsis_list
 
-    def test_loinc_vitals_exist_in_observations(self, bridge):
+    def test_loinc_vitals_exist_in_observations(
+        self,
+        bridge,
+    ):
         """load_patient() returns the seeded LOINC trajectory for the sepsis patient."""
         readings = bridge.load_patient(DEMO_SEPSIS_PATIENT)
         assert len(readings) == 3, f"Expected 3 grouped readings, got {len(readings)}"
-        assert [r["hr"] for r in readings] == [102.0, 118.0, 136.0]
+        assert [r["hr"] for r in readings] == [
+            102.0,
+            118.0,
+            136.0,
+        ]
 
-    def test_sepsis_onset_ts_from_conditions(self, bridge):
+    def test_sepsis_onset_ts_from_conditions(
+        self,
+        bridge,
+    ):
         """get_sepsis_onset_ts() returns 2012-04-18 UTC for the demo sepsis patient."""
         ts = bridge.get_sepsis_onset_ts(DEMO_SEPSIS_PATIENT)
         assert ts is not None
@@ -113,13 +143,34 @@ class TestSepsisPatientDetection:
 class TestIterPatientWithDemoData:
     """iter_patient() streams the seeded demo trajectory and preserves monotonic time."""
 
-    def test_iter_patient_yields_with_engine(self, bridge, engine):
-        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
-        readings = list(itertools.islice(gen, 10))
+    def test_iter_patient_yields_with_engine(
+        self,
+        bridge,
+        engine,
+    ):
+        gen = bridge.iter_patient(
+            DEMO_SEPSIS_PATIENT,
+            fallback_engine=engine,
+            loop=True,
+        )
+        readings = list(
+            itertools.islice(
+                gen,
+                10,
+            )
+        )
         assert len(readings) == 10
 
-    def test_readings_have_correct_fields(self, bridge, engine):
-        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
+    def test_readings_have_correct_fields(
+        self,
+        bridge,
+        engine,
+    ):
+        gen = bridge.iter_patient(
+            DEMO_SEPSIS_PATIENT,
+            fallback_engine=engine,
+            loop=True,
+        )
         r = next(gen)
         required = {
             "scenario_stage",
@@ -137,20 +188,54 @@ class TestIterPatientWithDemoData:
         missing = required - r.keys()
         assert not missing, f"Missing keys in reading: {missing}"
 
-    def test_readings_have_sepsis_vitals(self, bridge, engine):
+    def test_readings_have_sepsis_vitals(
+        self,
+        bridge,
+        engine,
+    ):
         """Readings from the sepsis engine should show sepsis-range values within 24 ticks."""
-        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
-        readings = list(itertools.islice(gen, 24))
+        gen = bridge.iter_patient(
+            DEMO_SEPSIS_PATIENT,
+            fallback_engine=engine,
+            loop=True,
+        )
+        readings = list(
+            itertools.islice(
+                gen,
+                24,
+            )
+        )
         # At least one reading should be in a sepsis or later stage
         stages = {r["scenario_stage"] for r in readings}
-        sepsis_stages = {"pre_sepsis", "sepsis_onset", "sepsis", "septic_shock"}
+        sepsis_stages = {
+            "pre_sepsis",
+            "sepsis_onset",
+            "sepsis",
+            "septic_shock",
+        }
         assert stages & sepsis_stages, f"No sepsis stages seen, got: {stages}"
 
-    def test_timestamps_are_monotonically_increasing(self, bridge, engine):
-        gen = bridge.iter_patient(DEMO_SEPSIS_PATIENT, fallback_engine=engine, loop=True)
-        readings = list(itertools.islice(gen, 12))
+    def test_timestamps_are_monotonically_increasing(
+        self,
+        bridge,
+        engine,
+    ):
+        gen = bridge.iter_patient(
+            DEMO_SEPSIS_PATIENT,
+            fallback_engine=engine,
+            loop=True,
+        )
+        readings = list(
+            itertools.islice(
+                gen,
+                12,
+            )
+        )
         timestamps = [r["timestamp"] for r in readings]
-        for i in range(1, len(timestamps)):
+        for i in range(
+            1,
+            len(timestamps),
+        ):
             assert timestamps[i] > timestamps[i - 1], f"timestamp[{i}]={timestamps[i]} not > [{i-1}]={timestamps[i-1]}"
 
 
@@ -162,7 +247,9 @@ class TestIterPatientWithDemoData:
 class TestVitalsSimulatorWithDemoData:
     """VitalsSimulator._build_source() should auto-select the sepsis patient."""
 
-    def test_auto_selects_sepsis_patient(self):
+    def test_auto_selects_sepsis_patient(
+        self,
+    ):
         """When patient_id defaults to 'P001', simulator auto-selects from conditions.csv."""
         from src.simulator import VitalsSimulator
 
@@ -180,7 +267,9 @@ class TestVitalsSimulatorWithDemoData:
         assert sim.patient_id == DEMO_SEPSIS_PATIENT
         assert sim._source == "synthea"
 
-    def test_generate_vital_returns_valid_payload(self):
+    def test_generate_vital_returns_valid_payload(
+        self,
+    ):
         """_generate_vital() returns a dict with all expected v2 payload keys."""
         from src.simulator import VitalsSimulator
 

@@ -12,7 +12,7 @@ are supported: `healthy`, `sepsis`, and `critical`.
 - Multi-stage sepsis progression engine (`pre_sepsis → sepsis_onset → sepsis → septic_shock`).
 - Synthea-based synthetic patient data bridge (optional).
 - v2 MQTT payload with `respiratory_rate`, SIRS/qSOFA scores, sepsis stage
-  metadata, and `version: "2.0"`.
+  metadata, and dynamically-versioned `version` field (currently `2.1.0`).
 - Deterministic replay — same `--seed` always produces the same sequence.
 
 ## Tech Stack

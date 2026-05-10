@@ -13,7 +13,9 @@ PIN_FILE = VITALS_DIR / "contract-pin.json"
 SCHEMA_FILE = VITALS_DIR / "vitals.schema.json"
 
 
-def _load_json(path: Path) -> dict:
+def _load_json(
+    path: Path,
+) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -45,23 +47,35 @@ def test_pin_schema_path_and_local_schema_are_expected():
 def test_schema_file_exists_and_is_valid_json():
     assert SCHEMA_FILE.exists(), f"Missing vendored schema: {SCHEMA_FILE}"
     schema = _load_json(SCHEMA_FILE)
-    assert isinstance(schema, dict)
+    assert isinstance(
+        schema,
+        dict,
+    )
     assert schema.get("type") == "object"
 
 
 def test_compatibility_metadata_shape():
     pin = _load_json(PIN_FILE)
     compatibility = pin["compatibility"]
-    assert isinstance(compatibility, dict)
+    assert isinstance(
+        compatibility,
+        dict,
+    )
     assert "classification" in compatibility
     assert "breaking" in compatibility
-    assert isinstance(compatibility["breaking"], bool)
+    assert isinstance(
+        compatibility["breaking"],
+        bool,
+    )
 
 
 def test_schema_diff_metadata_shape():
     pin = _load_json(PIN_FILE)
     schema_diff = pin["schema_diff"]
-    assert isinstance(schema_diff, dict)
+    assert isinstance(
+        schema_diff,
+        dict,
+    )
     expected = {
         "required_added",
         "required_removed",
@@ -71,4 +85,7 @@ def test_schema_diff_metadata_shape():
     }
     assert expected.issubset(schema_diff.keys())
     for key in expected:
-        assert isinstance(schema_diff[key], list), f"Expected list at schema_diff.{key}"
+        assert isinstance(
+            schema_diff[key],
+            list,
+        ), f"Expected list at schema_diff.{key}"

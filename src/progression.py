@@ -31,69 +31,210 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Each entry: (hr_range, bp_sys_range, bp_dia_range, o2_sat_range,
 #              temp_range, rr_range, wbc_range, lactate_range, quality)
-_STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
+_STAGE_PARAMS: Dict[
+    str,
+    Dict[
+        str,
+        Any,
+    ],
+] = {
     "healthy": {
-        "hr": (60.0, 95.0),
-        "bp_sys": (100.0, 130.0),
-        "bp_dia": (65.0, 85.0),
-        "o2_sat": (96.0, 100.0),
-        "temp": (36.5, 37.3),
-        "rr": (12.0, 18.0),
-        "wbc": (4.5, 10.0),
-        "lactate": (0.5, 1.5),
-        "creatinine": (0.6, 1.1),
+        "hr": (
+            60.0,
+            95.0,
+        ),
+        "bp_sys": (
+            100.0,
+            130.0,
+        ),
+        "bp_dia": (
+            65.0,
+            85.0,
+        ),
+        "o2_sat": (
+            96.0,
+            100.0,
+        ),
+        "temp": (
+            36.5,
+            37.3,
+        ),
+        "rr": (
+            12.0,
+            18.0,
+        ),
+        "wbc": (
+            4.5,
+            10.0,
+        ),
+        "lactate": (
+            0.5,
+            1.5,
+        ),
+        "creatinine": (
+            0.6,
+            1.1,
+        ),
         "altered_mentation": False,
         "quality": "good",
     },
     "pre_sepsis": {
-        "hr": (85.0, 105.0),
-        "bp_sys": (110.0, 135.0),
-        "bp_dia": (65.0, 90.0),
-        "o2_sat": (93.0, 97.0),
-        "temp": (37.5, 38.5),
-        "rr": (16.0, 22.0),
-        "wbc": (10.0, 15.0),
-        "lactate": (1.0, 2.0),
-        "creatinine": (0.9, 1.4),
+        "hr": (
+            85.0,
+            105.0,
+        ),
+        "bp_sys": (
+            110.0,
+            135.0,
+        ),
+        "bp_dia": (
+            65.0,
+            90.0,
+        ),
+        "o2_sat": (
+            93.0,
+            97.0,
+        ),
+        "temp": (
+            37.5,
+            38.5,
+        ),
+        "rr": (
+            16.0,
+            22.0,
+        ),
+        "wbc": (
+            10.0,
+            15.0,
+        ),
+        "lactate": (
+            1.0,
+            2.0,
+        ),
+        "creatinine": (
+            0.9,
+            1.4,
+        ),
         "altered_mentation": False,
         "quality": "good",
     },
     "sepsis_onset": {
-        "hr": (100.0, 120.0),
-        "bp_sys": (95.0, 115.0),
-        "bp_dia": (55.0, 75.0),
-        "o2_sat": (90.0, 94.0),
-        "temp": (38.5, 40.0),
-        "rr": (20.0, 26.0),
-        "wbc": (13.0, 18.0),
-        "lactate": (1.5, 3.0),
-        "creatinine": (1.3, 2.0),
+        "hr": (
+            100.0,
+            120.0,
+        ),
+        "bp_sys": (
+            95.0,
+            115.0,
+        ),
+        "bp_dia": (
+            55.0,
+            75.0,
+        ),
+        "o2_sat": (
+            90.0,
+            94.0,
+        ),
+        "temp": (
+            38.5,
+            40.0,
+        ),
+        "rr": (
+            20.0,
+            26.0,
+        ),
+        "wbc": (
+            13.0,
+            18.0,
+        ),
+        "lactate": (
+            1.5,
+            3.0,
+        ),
+        "creatinine": (
+            1.3,
+            2.0,
+        ),
         "altered_mentation": False,
         "quality": "degraded",
     },
     "sepsis": {
-        "hr": (115.0, 135.0),
-        "bp_sys": (85.0, 105.0),
-        "bp_dia": (45.0, 65.0),
-        "o2_sat": (86.0, 92.0),
-        "temp": (39.0, 40.5),
-        "rr": (24.0, 30.0),
-        "wbc": (15.0, 22.0),
-        "lactate": (2.5, 4.5),
-        "creatinine": (1.8, 3.5),
+        "hr": (
+            115.0,
+            135.0,
+        ),
+        "bp_sys": (
+            85.0,
+            105.0,
+        ),
+        "bp_dia": (
+            45.0,
+            65.0,
+        ),
+        "o2_sat": (
+            86.0,
+            92.0,
+        ),
+        "temp": (
+            39.0,
+            40.5,
+        ),
+        "rr": (
+            24.0,
+            30.0,
+        ),
+        "wbc": (
+            15.0,
+            22.0,
+        ),
+        "lactate": (
+            2.5,
+            4.5,
+        ),
+        "creatinine": (
+            1.8,
+            3.5,
+        ),
         "altered_mentation": True,
         "quality": "degraded",
     },
     "septic_shock": {
-        "hr": (130.0, 155.0),
-        "bp_sys": (65.0, 88.0),
-        "bp_dia": (30.0, 50.0),
-        "o2_sat": (75.0, 88.0),
-        "temp": (39.5, 41.5),
-        "rr": (28.0, 38.0),
-        "wbc": (18.0, 30.0),
-        "lactate": (4.0, 8.0),
-        "creatinine": (3.0, 6.5),
+        "hr": (
+            130.0,
+            155.0,
+        ),
+        "bp_sys": (
+            65.0,
+            88.0,
+        ),
+        "bp_dia": (
+            30.0,
+            50.0,
+        ),
+        "o2_sat": (
+            75.0,
+            88.0,
+        ),
+        "temp": (
+            39.5,
+            41.5,
+        ),
+        "rr": (
+            28.0,
+            38.0,
+        ),
+        "wbc": (
+            18.0,
+            30.0,
+        ),
+        "lactate": (
+            4.0,
+            8.0,
+        ),
+        "creatinine": (
+            3.0,
+            6.5,
+        ),
         "altered_mentation": True,
         "quality": "poor",
     },
@@ -102,11 +243,28 @@ _STAGE_PARAMS: Dict[str, Dict[str, Any]] = {
 _VALID_STAGES = list(_STAGE_PARAMS.keys())
 
 # Default progression order for sepsis scenario
-_SEPSIS_PROGRESSION: List[Tuple[str, int]] = [
-    ("pre_sepsis", 6),  # 6 ticks at pre-sepsis
-    ("sepsis_onset", 8),  # 8 ticks at onset
-    ("sepsis", 10),  # 10 ticks at sepsis
-    ("septic_shock", -1),  # -1 = repeat indefinitely
+_SEPSIS_PROGRESSION: List[
+    Tuple[
+        str,
+        int,
+    ]
+] = [
+    (
+        "pre_sepsis",
+        6,
+    ),  # 6 ticks at pre-sepsis
+    (
+        "sepsis_onset",
+        8,
+    ),  # 8 ticks at onset
+    (
+        "sepsis",
+        10,
+    ),  # 10 ticks at sepsis
+    (
+        "septic_shock",
+        -1,
+    ),  # -1 = repeat indefinitely
 ]
 
 
@@ -115,15 +273,38 @@ _SEPSIS_PROGRESSION: List[Tuple[str, int]] = [
 # ---------------------------------------------------------------------------
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
+def _clamp(
+    value: float,
+    lo: float,
+    hi: float,
+) -> float:
+    return max(
+        lo,
+        min(
+            hi,
+            value,
+        ),
+    )
 
 
-def _sample_in_range(rng: random.Random, lo: float, hi: float) -> float:
-    return round(rng.uniform(lo, hi), 1)
+def _sample_in_range(
+    rng: random.Random,
+    lo: float,
+    hi: float,
+) -> float:
+    return round(
+        rng.uniform(
+            lo,
+            hi,
+        ),
+        1,
+    )
 
 
-def _midpoint(lo: float, hi: float) -> float:
+def _midpoint(
+    lo: float,
+    hi: float,
+) -> float:
     return (lo + hi) / 2.0
 
 
@@ -154,7 +335,12 @@ class ProgressionEngine:
         stage: Optional[str] = None,
         patient_id: str = "P001",
         seed: int = 42,
-        ticks_per_stage: Optional[Dict[str, int]] = None,
+        ticks_per_stage: Optional[
+            Dict[
+                str,
+                int,
+            ]
+        ] = None,
     ) -> None:
         """Initialise the progression engine.
 
@@ -165,7 +351,11 @@ class ProgressionEngine:
             seed: RNG seed for deterministic replay.
             ticks_per_stage: Stage-duration overrides.
         """
-        valid_scenarios = {"healthy", "sepsis", "critical"}
+        valid_scenarios = {
+            "healthy",
+            "sepsis",
+            "critical",
+        }
         if scenario not in valid_scenarios:
             raise ValueError(f"Invalid scenario '{scenario}'. Expected one of: {sorted(valid_scenarios)}")
 
@@ -178,14 +368,38 @@ class ProgressionEngine:
 
         # Build the stage progression list
         if scenario == "healthy":
-            self._progression: List[Tuple[str, int]] = [("healthy", -1)]
+            self._progression: List[
+                Tuple[
+                    str,
+                    int,
+                ]
+            ] = [
+                (
+                    "healthy",
+                    -1,
+                )
+            ]
         elif scenario == "sepsis":
             if ticks_per_stage:
-                self._progression = [(s, ticks_per_stage.get(s, t)) for s, t in _SEPSIS_PROGRESSION]
+                self._progression = [
+                    (
+                        s,
+                        ticks_per_stage.get(
+                            s,
+                            t,
+                        ),
+                    )
+                    for s, t in _SEPSIS_PROGRESSION
+                ]
             else:
                 self._progression = list(_SEPSIS_PROGRESSION)
         else:  # critical – jump straight to septic_shock
-            self._progression = [("septic_shock", -1)]
+            self._progression = [
+                (
+                    "septic_shock",
+                    -1,
+                )
+            ]
 
         self._prog_idx = 0
         self._stage_tick = 0
@@ -200,7 +414,12 @@ class ProgressionEngine:
                 self._prog_idx += 1
             if self._prog_idx >= len(self._progression):
                 # Stage not in progression list; append it as indefinite
-                self._progression.append((stage, -1))
+                self._progression.append(
+                    (
+                        stage,
+                        -1,
+                    )
+                )
                 self._prog_idx = len(self._progression) - 1
 
         # Seed the initial vital values to the midpoint of the starting stage
@@ -220,16 +439,23 @@ class ProgressionEngine:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _current_stage(self) -> str:
+    def _current_stage(
+        self,
+    ) -> str:
         if self._prog_idx >= len(self._progression):
             return self._progression[-1][0]
         return self._progression[self._prog_idx][0]
 
-    def _advance_stage(self) -> None:
+    def _advance_stage(
+        self,
+    ) -> None:
         """Advance to the next stage if the current stage's tick budget is spent."""
         if self._prog_idx >= len(self._progression) - 1:
             return  # already on last stage
-        _, budget = self._progression[self._prog_idx]
+        (
+            _,
+            budget,
+        ) = self._progression[self._prog_idx]
         if budget == -1:
             return  # indefinite stage
         if self._stage_tick >= budget:
@@ -254,26 +480,47 @@ class ProgressionEngine:
         Returns:
             New value clamped within [lo - margin, hi + margin].
         """
-        target = _midpoint(lo, hi)
+        target = _midpoint(
+            lo,
+            hi,
+        )
         half_width = (hi - lo) / 2.0
         # Move 15 % toward target each tick
         drift = (target - current) * 0.15
-        noise = self._rng.gauss(0.0, half_width * noise_scale)
+        noise = self._rng.gauss(
+            0.0,
+            half_width * noise_scale,
+        )
         new_val = current + drift + noise
         # Clamp with a 20 % margin outside the target range
         margin = (hi - lo) * 0.2
-        return round(_clamp(new_val, lo - margin, hi + margin), 1)
+        return round(
+            _clamp(
+                new_val,
+                lo - margin,
+                hi + margin,
+            ),
+            1,
+        )
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     @property
-    def current_stage(self) -> str:
+    def current_stage(
+        self,
+    ) -> str:
         """The current stage name."""
         return self._current_stage()
 
-    def next_reading(self, ts: Optional[int] = None) -> Dict[str, Any]:
+    def next_reading(
+        self,
+        ts: Optional[int] = None,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Produce the next vital-signs reading and advance internal state.
 
         Args:
@@ -288,20 +535,54 @@ class ProgressionEngine:
         params = _STAGE_PARAMS[stage]
 
         # Drift each vital toward the target range for this stage
-        self._hr = self._drift_toward(self._hr, *params["hr"])
-        self._bp_sys = self._drift_toward(self._bp_sys, *params["bp_sys"])
-        self._bp_dia = self._drift_toward(self._bp_dia, *params["bp_dia"])
-        self._o2_sat = self._drift_toward(self._o2_sat, *params["o2_sat"])
-        self._temp = self._drift_toward(self._temp, *params["temp"])
-        self._rr = self._drift_toward(self._rr, *params["rr"])
-        self._wbc = self._drift_toward(self._wbc, *params["wbc"])
-        self._lactate = self._drift_toward(self._lactate, *params["lactate"])
-        self._creatinine = self._drift_toward(self._creatinine, *params["creatinine"])
+        self._hr = self._drift_toward(
+            self._hr,
+            *params["hr"],
+        )
+        self._bp_sys = self._drift_toward(
+            self._bp_sys,
+            *params["bp_sys"],
+        )
+        self._bp_dia = self._drift_toward(
+            self._bp_dia,
+            *params["bp_dia"],
+        )
+        self._o2_sat = self._drift_toward(
+            self._o2_sat,
+            *params["o2_sat"],
+        )
+        self._temp = self._drift_toward(
+            self._temp,
+            *params["temp"],
+        )
+        self._rr = self._drift_toward(
+            self._rr,
+            *params["rr"],
+        )
+        self._wbc = self._drift_toward(
+            self._wbc,
+            *params["wbc"],
+        )
+        self._lactate = self._drift_toward(
+            self._lactate,
+            *params["lactate"],
+        )
+        self._creatinine = self._drift_toward(
+            self._creatinine,
+            *params["creatinine"],
+        )
 
         timestamp = ts if ts is not None else int(time.time() * 1000)
 
         # Track when sepsis first manifests (qSOFA ≥ 2 proxy: stage ∈ {sepsis, septic_shock})
-        if stage in {"sepsis", "septic_shock"} and self._sepsis_onset_ts is None:
+        if (
+            stage
+            in {
+                "sepsis",
+                "septic_shock",
+            }
+            and self._sepsis_onset_ts is None
+        ):
             self._sepsis_onset_ts = timestamp
 
         self._tick += 1
@@ -325,8 +606,16 @@ class ProgressionEngine:
         }
 
     def generate_sequence(
-        self, n: int, start_ts: Optional[int] = None, interval_ms: int = 1_000
-    ) -> List[Dict[str, Any]]:
+        self,
+        n: int,
+        start_ts: Optional[int] = None,
+        interval_ms: int = 1_000,
+    ) -> List[
+        Dict[
+            str,
+            Any,
+        ]
+    ]:
         """Generate *n* consecutive readings spaced *interval_ms* apart.
 
         Useful for offline simulation (e.g. Synthea bridge validation).

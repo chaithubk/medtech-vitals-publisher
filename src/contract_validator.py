@@ -29,7 +29,9 @@ from src import config
 logger = logging.getLogger(__name__)
 
 
-def load_runtime_schema(path: str) -> Dict[str, Any]:
+def load_runtime_schema(
+    path: str,
+) -> Dict[str, Any]:
     """Load and parse the JSON Schema from *path*.
 
     Args:
@@ -49,7 +51,16 @@ def load_runtime_schema(path: str) -> Dict[str, Any]:
     return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
-def validate_payload(payload: Dict[str, Any], schema: Dict[str, Any]) -> None:
+def validate_payload(
+    payload: Dict[
+        str,
+        Any,
+    ],
+    schema: Dict[
+        str,
+        Any,
+    ],
+) -> None:
     """Validate *payload* against *schema*.
 
     Args:
@@ -59,10 +70,16 @@ def validate_payload(payload: Dict[str, Any], schema: Dict[str, Any]) -> None:
     Raises:
         jsonschema.ValidationError: When validation fails.
     """
-    jsonschema.validate(instance=payload, schema=schema)
+    jsonschema.validate(
+        instance=payload,
+        schema=schema,
+    )
 
 
-def initialize_runtime_schema() -> Dict[str, Any]:
+def initialize_runtime_schema() -> Dict[
+    str,
+    Any,
+]:
     """Load the runtime schema at startup; hard-fail if unavailable.
 
     Reads the schema path from :attr:`src.config.VITALS_SCHEMA_PATH`.
@@ -75,7 +92,10 @@ def initialize_runtime_schema() -> Dict[str, Any]:
     schema_path = config.VITALS_SCHEMA_PATH
     try:
         schema = load_runtime_schema(schema_path)
-        logger.info("Runtime schema loaded from '%s'", schema_path)
+        logger.info(
+            "Runtime schema loaded from '%s'",
+            schema_path,
+        )
         return schema
     except FileNotFoundError as exc:
         logger.critical(
@@ -100,7 +120,16 @@ def initialize_runtime_schema() -> Dict[str, Any]:
         sys.exit(1)
 
 
-def validate_before_publish(payload: Dict[str, Any], schema: Dict[str, Any]) -> None:
+def validate_before_publish(
+    payload: Dict[
+        str,
+        Any,
+    ],
+    schema: Dict[
+        str,
+        Any,
+    ],
+) -> None:
     """Validate *payload* against *schema* before publishing; hard-fail on violation.
 
     Args:
@@ -108,7 +137,10 @@ def validate_before_publish(payload: Dict[str, Any], schema: Dict[str, Any]) -> 
         schema: The runtime schema loaded by :func:`initialize_runtime_schema`.
     """
     try:
-        validate_payload(payload, schema)
+        validate_payload(
+            payload,
+            schema,
+        )
     except jsonschema.ValidationError as exc:
         logger.critical(
             "Outbound payload failed contract validation: %s – aborting",

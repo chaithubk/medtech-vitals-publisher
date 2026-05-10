@@ -4,9 +4,13 @@ This module defines the canonical v2 payload structure published to
 ``medtech/vitals/latest`` and provides SIRS/qSOFA scoring functions
 required by downstream edge-analytics consumers.
 
+The schema version is dynamically loaded from the pinned contract metadata
+(contracts/vitals/contract-pin.json) at import time, ensuring that the
+publisher always sends the version that matches the vendored contract.
+
 v2 Payload Fields
 -----------------
-version           : "2.0" – schema version sentinel
+version           : str   – schema version sentinel (dynamically loaded from contract pin)
 patient_id        : str   – patient identifier (e.g. "P001")
 scenario          : str   – active clinical scenario label
 scenario_stage    : str   – progression stage within scenario
@@ -31,10 +35,35 @@ source            : str   – data source label
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Optional
 
-SCHEMA_VERSION = "2.0"
+
+def _load_schema_version() -> str:
+    """Load the schema version from the pinned contract metadata.
+
+    Reads the contract tag from contracts/vitals/contract-pin.json and
+    extracts the semantic version (e.g., "v2.1.0" -> "2.1.0").
+
+    Returns:
+        Schema version string (e.g., "2.1.0").
+
+    Raises:
+        FileNotFoundError: If contract-pin.json cannot be found.
+        KeyError: If the 'tag' field is missing from contract metadata.
+    """
+    contract_pin_path = Path(__file__).parent.parent / "contracts" / "vitals" / "contract-pin.json"
+    with open(contract_pin_path) as f:
+        contract_metadata = json.load(f)
+
+    tag = contract_metadata["tag"]  # e.g., "v2.1.0"
+    # Strip the leading 'v' if present
+    return tag.lstrip("v")
+
+
+SCHEMA_VERSION = _load_schema_version()
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +226,12 @@ class VitalsPayloadV2:
     source: str
     version: str = field(default=SCHEMA_VERSION)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(
+        self,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Return a JSON-serialisable dict representation.
 
         Returns:
@@ -252,9 +286,23 @@ def build_payload(
     Returns:
         Fully populated :class:`VitalsPayloadV2` instance.
     """
-    sirs = calculate_sirs(temperature, hr, respiratory_rate, wbc)
-    qsofa = calculate_qsofa(respiratory_rate, bp_sys, altered_mentation)
-    stage = classify_sepsis_stage(sirs, qsofa, bp_sys, lactate)
+    sirs = calculate_sirs(
+        temperature,
+        hr,
+        respiratory_rate,
+        wbc,
+    )
+    qsofa = calculate_qsofa(
+        respiratory_rate,
+        bp_sys,
+        altered_mentation,
+    )
+    stage = classify_sepsis_stage(
+        sirs,
+        qsofa,
+        bp_sys,
+        lactate,
+    )
 
     return VitalsPayloadV2(
         version=SCHEMA_VERSION,

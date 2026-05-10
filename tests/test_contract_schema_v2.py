@@ -31,7 +31,11 @@ _DEMO_SEPSIS_PATIENT = "79590754-4679-dafd-8aab-103706580fff"
 
 @pytest.fixture(scope="module")
 def vitals_schema() -> dict:
-    """Load the vendored v2.0 JSON Schema once per test module."""
+    """Load the vendored telemetry contract schema once per test module.
+
+    The schema version is dynamically managed by contract-pin.json and
+    reflects the pinned contract tag version.
+    """
     assert _SCHEMA_PATH.exists(), (
         f"Vendored schema not found at {_SCHEMA_PATH}. "
         "Run `python scripts/vendor_telemetry_contract.py` to populate it."
@@ -44,9 +48,16 @@ def vitals_schema() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _generate_payload(scenario: str, stage: str | None = None) -> dict:
+def _generate_payload(
+    scenario: str,
+    stage: str | None = None,
+) -> dict:
     """Generate a single v2 payload dict using the real production code path."""
-    engine = ProgressionEngine(scenario=scenario, stage=stage, seed=42)
+    engine = ProgressionEngine(
+        scenario=scenario,
+        stage=stage,
+        seed=42,
+    )
     raw = engine.next_reading(ts=1_700_000_000_000)
     payload = build_payload(
         patient_id="P001",
@@ -65,17 +76,32 @@ def _generate_payload(scenario: str, stage: str | None = None) -> dict:
         quality=raw["quality"],
         source="simulator",
         sepsis_onset_ts=raw.get("sepsis_onset_ts"),
-        altered_mentation=raw.get("altered_mentation", False),
+        altered_mentation=raw.get(
+            "altered_mentation",
+            False,
+        ),
     )
     return payload.to_dict()
 
 
-def _generate_synthea_payload(patient_id: str) -> tuple[dict, dict]:
+def _generate_synthea_payload(
+    patient_id: str,
+) -> tuple[
+    dict,
+    dict,
+]:
     """Generate one payload from the Synthea bridge path used in production."""
     bridge = SyntheaBridge(str(_DEMO_CSV))
     # Start at septic_shock so quality matches stage-based mapping (poor).
-    fallback_engine = ProgressionEngine(scenario="sepsis", stage="septic_shock", seed=42)
-    readings = bridge.load_patient(patient_id, fallback_engine=fallback_engine)
+    fallback_engine = ProgressionEngine(
+        scenario="sepsis",
+        stage="septic_shock",
+        seed=42,
+    )
+    readings = bridge.load_patient(
+        patient_id,
+        fallback_engine=fallback_engine,
+    )
     assert readings, f"No Synthea readings found for patient {patient_id}"
     raw = readings[0]
     payload = build_payload(
@@ -91,13 +117,22 @@ def _generate_synthea_payload(patient_id: str) -> tuple[dict, dict]:
         respiratory_rate=raw["respiratory_rate"],
         wbc=raw["wbc"],
         lactate=raw["lactate"],
-        creatinine=raw.get("creatinine", 0.9),
+        creatinine=raw.get(
+            "creatinine",
+            0.9,
+        ),
         quality=raw["quality"],
         source="synthea",
         sepsis_onset_ts=raw.get("sepsis_onset_ts"),
-        altered_mentation=raw.get("altered_mentation", False),
+        altered_mentation=raw.get(
+            "altered_mentation",
+            False,
+        ),
     )
-    return payload.to_dict(), raw
+    return (
+        payload.to_dict(),
+        raw,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -111,20 +146,50 @@ class TestContractCompliance:
     @pytest.mark.parametrize(
         "scenario,stage",
         [
-            ("healthy", None),
-            ("sepsis", "pre_sepsis"),
-            ("sepsis", "sepsis_onset"),
-            ("sepsis", "sepsis"),
-            ("sepsis", "septic_shock"),
-            ("critical", None),
+            (
+                "healthy",
+                None,
+            ),
+            (
+                "sepsis",
+                "pre_sepsis",
+            ),
+            (
+                "sepsis",
+                "sepsis_onset",
+            ),
+            (
+                "sepsis",
+                "sepsis",
+            ),
+            (
+                "sepsis",
+                "septic_shock",
+            ),
+            (
+                "critical",
+                None,
+            ),
         ],
     )
-    def test_payload_validates_against_contract(self, vitals_schema, scenario, stage):
+    def test_payload_validates_against_contract(
+        self,
+        vitals_schema,
+        scenario,
+        stage,
+    ):
         """Generated payload for every scenario/stage must pass JSON Schema
-        validation."""
-        payload = _generate_payload(scenario, stage)
+        validation.
+        """
+        payload = _generate_payload(
+            scenario,
+            stage,
+        )
         try:
-            jsonschema.validate(instance=payload, schema=vitals_schema)
+            jsonschema.validate(
+                instance=payload,
+                schema=vitals_schema,
+            )
         except jsonschema.ValidationError as exc:
             pytest.fail(
                 f"Payload for scenario={scenario!r}, stage={stage!r} failed "
@@ -136,75 +201,193 @@ class TestContractCompliance:
         not _DEMO_CSV.is_dir(),
         reason="Demo dataset not present (data/synthea/demo/csv)",
     )
-    def test_synthea_payload_validates_against_contract(self, vitals_schema):
+    def test_synthea_payload_validates_against_contract(
+        self,
+        vitals_schema,
+    ):
         """Synthea-backed emissions must validate against the vendored schema."""
-        payload, raw = _generate_synthea_payload(_DEMO_SEPSIS_PATIENT)
-        jsonschema.validate(instance=payload, schema=vitals_schema)
+        (
+            payload,
+            raw,
+        ) = _generate_synthea_payload(_DEMO_SEPSIS_PATIENT)
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
         assert payload["source"] == "synthea"
         assert payload["quality"] == raw["quality"]
-        assert payload["quality"] in {"degraded", "poor"}
+        assert payload["quality"] in {
+            "degraded",
+            "poor",
+        }
 
-    def test_all_required_fields_present(self, vitals_schema):
+    def test_all_required_fields_present(
+        self,
+        vitals_schema,
+    ):
         """Every required field in the schema is present in the generated
-        payload."""
-        payload = _generate_payload("sepsis", "sepsis_onset")
-        required = set(vitals_schema.get("required", []))
+        payload.
+        """
+        payload = _generate_payload(
+            "sepsis",
+            "sepsis_onset",
+        )
+        required = set(
+            vitals_schema.get(
+                "required",
+                [],
+            )
+        )
         missing = required - payload.keys()
         assert not missing, f"Missing required fields: {missing}"
 
-    def test_no_extra_fields(self, vitals_schema):
+    def test_no_extra_fields(
+        self,
+        vitals_schema,
+    ):
         """No extra fields are emitted beyond those defined in the schema."""
         payload = _generate_payload("healthy")
         defined = set(vitals_schema["properties"].keys())
         extra = payload.keys() - defined
         assert not extra, f"Payload contains undefined fields: {extra}"
 
-    def test_version_field_is_2_0(self, vitals_schema):
-        """version field must be exactly '2.0' as required by the contract."""
+    def test_version_field_matches_contract(
+        self,
+        vitals_schema,
+    ):
+        """version field must match the contract schema's required version.
+
+        The version is dynamically loaded from the contract pin metadata,
+        so this test verifies that the payload version matches whatever
+        version the contract schema requires.
+        """
         payload = _generate_payload("healthy")
-        jsonschema.validate(instance=payload, schema=vitals_schema)
-        assert payload["version"] == "2.0"
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
+        # The schema's version property has a 'const' field that specifies
+        # exactly what version is required
+        expected_version = vitals_schema["properties"]["version"]["const"]
+        assert payload["version"] == expected_version
 
-    def test_quality_is_string(self, vitals_schema):
+    def test_quality_is_string(
+        self,
+        vitals_schema,
+    ):
         """quality field must be a string (not integer) per contract."""
-        payload = _generate_payload("sepsis", "sepsis_onset")
-        jsonschema.validate(instance=payload, schema=vitals_schema)
-        assert isinstance(payload["quality"], str)
+        payload = _generate_payload(
+            "sepsis",
+            "sepsis_onset",
+        )
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
+        assert isinstance(
+            payload["quality"],
+            str,
+        )
 
-    def test_timestamp_is_integer(self, vitals_schema):
+    def test_timestamp_is_integer(
+        self,
+        vitals_schema,
+    ):
         """timestamp must be an integer (ms-epoch) per contract."""
         payload = _generate_payload("healthy")
-        jsonschema.validate(instance=payload, schema=vitals_schema)
-        assert isinstance(payload["timestamp"], int)
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
+        assert isinstance(
+            payload["timestamp"],
+            int,
+        )
 
-    def test_sirs_score_is_integer_in_range(self, vitals_schema):
+    def test_sirs_score_is_integer_in_range(
+        self,
+        vitals_schema,
+    ):
         """sirs_score must be an integer 0-4."""
-        payload = _generate_payload("sepsis", "sepsis_onset")
-        jsonschema.validate(instance=payload, schema=vitals_schema)
-        assert isinstance(payload["sirs_score"], int)
+        payload = _generate_payload(
+            "sepsis",
+            "sepsis_onset",
+        )
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
+        assert isinstance(
+            payload["sirs_score"],
+            int,
+        )
         assert 0 <= payload["sirs_score"] <= 4
 
-    def test_qsofa_score_is_integer_in_range(self, vitals_schema):
+    def test_qsofa_score_is_integer_in_range(
+        self,
+        vitals_schema,
+    ):
         """qsofa_score must be an integer 0-3."""
-        payload = _generate_payload("sepsis", "sepsis_onset")
-        jsonschema.validate(instance=payload, schema=vitals_schema)
-        assert isinstance(payload["qsofa_score"], int)
+        payload = _generate_payload(
+            "sepsis",
+            "sepsis_onset",
+        )
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
+        assert isinstance(
+            payload["qsofa_score"],
+            int,
+        )
         assert 0 <= payload["qsofa_score"] <= 3
 
-    def test_sepsis_onset_ts_none_when_not_septic(self, vitals_schema):
+    def test_sepsis_onset_ts_none_when_not_septic(
+        self,
+        vitals_schema,
+    ):
         """sepsis_onset_ts is null for healthy scenario (not yet in sepsis)."""
         payload = _generate_payload("healthy")
-        jsonschema.validate(instance=payload, schema=vitals_schema)
+        jsonschema.validate(
+            instance=payload,
+            schema=vitals_schema,
+        )
         assert payload["sepsis_onset_ts"] is None
 
-    def test_sepsis_stage_enum(self, vitals_schema):
+    def test_sepsis_stage_enum(
+        self,
+        vitals_schema,
+    ):
         """sepsis_stage must be one of the enum values in the contract."""
-        valid_stages = {"none", "sirs", "sepsis", "septic_shock"}
-        for scenario, stage in [
-            ("healthy", None),
-            ("sepsis", "sepsis"),
-            ("critical", None),
+        valid_stages = {
+            "none",
+            "sirs",
+            "sepsis",
+            "septic_shock",
+        }
+        for (
+            scenario,
+            stage,
+        ) in [
+            (
+                "healthy",
+                None,
+            ),
+            (
+                "sepsis",
+                "sepsis",
+            ),
+            (
+                "critical",
+                None,
+            ),
         ]:
-            payload = _generate_payload(scenario, stage)
-            jsonschema.validate(instance=payload, schema=vitals_schema)
+            payload = _generate_payload(
+                scenario,
+                stage,
+            )
+            jsonschema.validate(
+                instance=payload,
+                schema=vitals_schema,
+            )
             assert payload["sepsis_stage"] in valid_stages

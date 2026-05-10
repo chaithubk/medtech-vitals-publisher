@@ -57,7 +57,12 @@ class MQTTClient:
         client_id: Optional client identifier; auto-generated when omitted.
     """
 
-    def __init__(self, broker_host: str, broker_port: int, client_id: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        broker_host: str,
+        broker_port: int,
+        client_id: Optional[str] = None,
+    ) -> None:
         """Initialise the MQTT client.
 
         Args:
@@ -74,7 +79,12 @@ class MQTTClient:
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         # Last Will: broker publishes "offline" if the client disconnects unexpectedly
-        self._client.will_set(config.MQTT_STATUS_TOPIC, payload="offline", qos=1, retain=True)
+        self._client.will_set(
+            config.MQTT_STATUS_TOPIC,
+            payload="offline",
+            qos=1,
+            retain=True,
+        )
         # loop_start() is intentionally deferred to connect() to avoid spawning
         # background threads for objects that may never actually connect.
 
@@ -82,7 +92,13 @@ class MQTTClient:
     # Callbacks
     # ------------------------------------------------------------------
 
-    def _on_connect(self, client: Any, userdata: Any, flags: Any, rc: int) -> None:
+    def _on_connect(
+        self,
+        client: Any,
+        userdata: Any,
+        flags: Any,
+        rc: int,
+    ) -> None:
         """paho on_connect callback.
 
         Args:
@@ -93,12 +109,24 @@ class MQTTClient:
         """
         if rc == 0:
             self._connected = True
-            logger.info("Connected to MQTT broker %s:%d", self._broker_host, self._broker_port)
+            logger.info(
+                "Connected to MQTT broker %s:%d",
+                self._broker_host,
+                self._broker_port,
+            )
         else:
             self._connected = False
-            logger.warning("MQTT connection refused, rc=%d", rc)
+            logger.warning(
+                "MQTT connection refused, rc=%d",
+                rc,
+            )
 
-    def _on_disconnect(self, client: Any, userdata: Any, rc: int) -> None:
+    def _on_disconnect(
+        self,
+        client: Any,
+        userdata: Any,
+        rc: int,
+    ) -> None:
         """paho on_disconnect callback.
 
         Args:
@@ -108,7 +136,10 @@ class MQTTClient:
         """
         self._connected = False
         if rc != 0:
-            logger.warning("Unexpected MQTT disconnect, rc=%d", rc)
+            logger.warning(
+                "Unexpected MQTT disconnect, rc=%d",
+                rc,
+            )
         else:
             logger.info("MQTT broker disconnected cleanly")
 
@@ -116,24 +147,33 @@ class MQTTClient:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _stop_loop(self) -> None:
+    def _stop_loop(
+        self,
+    ) -> None:
         """Stop the paho network loop if it has been started."""
         if self._loop_started:
             self._client.loop_stop()
             self._loop_started = False
 
-    def __del__(self) -> None:
+    def __del__(
+        self,
+    ) -> None:
         """Best-effort cleanup – stop the background network loop on GC."""
         try:
             self._stop_loop()
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Suppressed MQTT cleanup exception during GC: %s", exc)
+            logger.debug(
+                "Suppressed MQTT cleanup exception during GC: %s",
+                exc,
+            )
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def connect(self) -> bool:
+    def connect(
+        self,
+    ) -> bool:
         """Connect to the MQTT broker with exponential-backoff retries.
 
         The paho network loop is started on the first call so that the
@@ -151,7 +191,10 @@ class MQTTClient:
             self._loop_started = True
         while True:
             try:
-                self._client.connect(self._broker_host, self._broker_port)
+                self._client.connect(
+                    self._broker_host,
+                    self._broker_port,
+                )
                 deadline = time.monotonic() + connect_wait_timeout
                 while time.monotonic() < deadline:
                     if self._connected:
@@ -168,18 +211,41 @@ class MQTTClient:
                     connect_wait_timeout,
                     backoff,
                 )
-            except (OSError, ConnectionError, TimeoutError) as exc:
-                logger.warning("MQTT connect error: %s – retrying in %ds", exc, backoff)
-                if self._broker_host in {"localhost", "127.0.0.1"} and _running_in_container():
+            except (
+                OSError,
+                ConnectionError,
+                TimeoutError,
+            ) as exc:
+                logger.warning(
+                    "MQTT connect error: %s – retrying in %ds",
+                    exc,
+                    backoff,
+                )
+                if (
+                    self._broker_host
+                    in {
+                        "localhost",
+                        "127.0.0.1",
+                    }
+                    and _running_in_container()
+                ):
                     logger.warning(
                         "Container detected and broker is %s. If your broker runs on the host machine, "
                         "set MQTT_BROKER=host.docker.internal (or pass --broker-host).",
                         self._broker_host,
                     )
             time.sleep(backoff)
-            backoff = min(backoff * 2, max_backoff)
+            backoff = min(
+                backoff * 2,
+                max_backoff,
+            )
 
-    def publish(self, topic: str, payload: str, qos: int = 1) -> bool:
+    def publish(
+        self,
+        topic: str,
+        payload: str,
+        qos: int = 1,
+    ) -> bool:
         """Publish a message to the MQTT broker.
 
         Args:
@@ -193,23 +259,43 @@ class MQTTClient:
         if not self._connected:
             logger.warning("Cannot publish: not connected to broker")
             return False
-        result = self._client.publish(topic, payload, qos=qos)
+        result = self._client.publish(
+            topic,
+            payload,
+            qos=qos,
+        )
         if result.rc != mqtt.MQTT_ERR_SUCCESS:
-            logger.warning("Publish failed, rc=%d", result.rc)
+            logger.warning(
+                "Publish failed, rc=%d",
+                result.rc,
+            )
             return False
         return True
 
-    def publish_status(self, status: str) -> None:
+    def publish_status(
+        self,
+        status: str,
+    ) -> None:
         """Publish a retained status message to the status topic.
 
         Args:
             status: Status string, typically 'online' or 'offline'.
         """
         if self._connected:
-            self._client.publish(config.MQTT_STATUS_TOPIC, payload=status, qos=1, retain=True)
-            logger.info("Published status: %s", status)
+            self._client.publish(
+                config.MQTT_STATUS_TOPIC,
+                payload=status,
+                qos=1,
+                retain=True,
+            )
+            logger.info(
+                "Published status: %s",
+                status,
+            )
 
-    def disconnect(self) -> None:
+    def disconnect(
+        self,
+    ) -> None:
         """Disconnect from the MQTT broker and stop the network loop."""
         try:
             self._client.disconnect()
@@ -218,7 +304,9 @@ class MQTTClient:
             self._connected = False
         logger.info("MQTT client disconnected")
 
-    def is_connected(self) -> bool:
+    def is_connected(
+        self,
+    ) -> bool:
         """Return the current connection status.
 
         Returns:
@@ -236,7 +324,13 @@ class ScenarioFactory:
     """Factory for generating deterministic synthetic vital signs by scenario."""
 
     @staticmethod
-    def _generate(scenario: str, rng: random.Random) -> Dict[str, Any]:
+    def _generate(
+        scenario: str,
+        rng: random.Random,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Generate one vital-signs reading for the given scenario.
 
         Args:
@@ -248,11 +342,26 @@ class ScenarioFactory:
         """
         cfg = config.SCENARIOS[scenario]
 
-        hr = round(rng.uniform(*cfg["hr"]), 1)
-        bp_sys = round(rng.uniform(*cfg["bp_sys"]), 1)
-        bp_dia = round(rng.uniform(*cfg["bp_dia"]), 1)
-        o2_sat = round(rng.uniform(*cfg["o2_sat"]), 1)
-        temperature = round(rng.uniform(*cfg["temp"]), 1)
+        hr = round(
+            rng.uniform(*cfg["hr"]),
+            1,
+        )
+        bp_sys = round(
+            rng.uniform(*cfg["bp_sys"]),
+            1,
+        )
+        bp_dia = round(
+            rng.uniform(*cfg["bp_dia"]),
+            1,
+        )
+        o2_sat = round(
+            rng.uniform(*cfg["o2_sat"]),
+            1,
+        )
+        temperature = round(
+            rng.uniform(*cfg["temp"]),
+            1,
+        )
         quality: int = cfg["quality"]
 
         if not cfg["hr"][0] <= hr <= cfg["hr"][1]:
@@ -278,7 +387,12 @@ class ScenarioFactory:
         }
 
     @staticmethod
-    def healthy(seed: Optional[int] = None) -> Dict[str, Any]:
+    def healthy(
+        seed: Optional[int] = None,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Generate healthy-scenario vital signs.
 
         Args:
@@ -287,10 +401,18 @@ class ScenarioFactory:
         Returns:
             Dict with healthy vital sign readings.
         """
-        return ScenarioFactory._generate("healthy", random.Random(seed))  # nosec B311
+        return ScenarioFactory._generate(
+            "healthy",
+            random.Random(seed),
+        )  # nosec B311
 
     @staticmethod
-    def sepsis(seed: Optional[int] = None) -> Dict[str, Any]:
+    def sepsis(
+        seed: Optional[int] = None,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Generate sepsis-scenario vital signs.
 
         Args:
@@ -299,10 +421,18 @@ class ScenarioFactory:
         Returns:
             Dict with sepsis vital sign readings.
         """
-        return ScenarioFactory._generate("sepsis", random.Random(seed))  # nosec B311
+        return ScenarioFactory._generate(
+            "sepsis",
+            random.Random(seed),
+        )  # nosec B311
 
     @staticmethod
-    def critical(seed: Optional[int] = None) -> Dict[str, Any]:
+    def critical(
+        seed: Optional[int] = None,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Generate critical-scenario vital signs.
 
         Args:
@@ -311,7 +441,10 @@ class ScenarioFactory:
         Returns:
             Dict with critical vital sign readings.
         """
-        return ScenarioFactory._generate("critical", random.Random(seed))  # nosec B311
+        return ScenarioFactory._generate(
+            "critical",
+            random.Random(seed),
+        )  # nosec B311
 
 
 # ---------------------------------------------------------------------------
@@ -373,14 +506,22 @@ class VitalsSimulator:
         self._connect_count = 0
         # Legacy deterministic RNG kept so ScenarioFactory static methods still work in tests.
         self._rng = random.Random(seed)  # nosec B311
-        self.mqtt_client: MQTTClient = MQTTClient(broker_host=broker_host, broker_port=broker_port)
+        self.mqtt_client: MQTTClient = MQTTClient(
+            broker_host=broker_host,
+            broker_port=broker_port,
+        )
 
         # Source label embedded in every published payload: "simulator" by default,
         # overridden to "synthea" when the Synthea bridge is active.
         self._source: str = "simulator"
 
         # Build the v2 reading source iterator
-        self._reading_iter: Iterator[Dict[str, Any]] = self._build_source(
+        self._reading_iter: Iterator[
+            Dict[
+                str,
+                Any,
+            ]
+        ] = self._build_source(
             scenario=scenario,
             stage=stage,
             seed=seed,
@@ -410,7 +551,12 @@ class VitalsSimulator:
         seed: int,
         patient_id: str,
         synthea_path: str,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[
+        Dict[
+            str,
+            Any,
+        ]
+    ]:
         """Return an iterator that yields v2-compatible raw reading dicts.
 
         Args:
@@ -445,7 +591,10 @@ class VitalsSimulator:
                     if sepsis_candidates:
                         pid = sepsis_candidates[0]
                         self.patient_id = pid
-                        logger.info("Auto-selected sepsis patient from Synthea dataset: %s", pid)
+                        logger.info(
+                            "Auto-selected sepsis patient from Synthea dataset: %s",
+                            pid,
+                        )
                 if pid is None:
                     pid = available[0] if available else None
                 if pid:
@@ -455,19 +604,36 @@ class VitalsSimulator:
                         pid,
                     )
                     self._source = "synthea"
-                    return bridge.iter_patient(pid, fallback_engine=engine, loop=True)
+                    return bridge.iter_patient(
+                        pid,
+                        fallback_engine=engine,
+                        loop=True,
+                    )
                 logger.warning(
                     "No patients found in Synthea path '%s'; using progression engine",
                     synthea_path,
                 )
-            except (FileNotFoundError, OSError) as exc:
-                logger.warning("Synthea bridge unavailable (%s); using progression engine", exc)
+            except (
+                FileNotFoundError,
+                OSError,
+            ) as exc:
+                logger.warning(
+                    "Synthea bridge unavailable (%s); using progression engine",
+                    exc,
+                )
 
         # Default: progression engine as infinite generator
         return self._engine_iter(engine)
 
     @staticmethod
-    def _engine_iter(engine: ProgressionEngine) -> Iterator[Dict[str, Any]]:
+    def _engine_iter(
+        engine: ProgressionEngine,
+    ) -> Iterator[
+        Dict[
+            str,
+            Any,
+        ]
+    ]:
         """Wrap a ProgressionEngine as an infinite iterator.
 
         Args:
@@ -479,7 +645,9 @@ class VitalsSimulator:
         while True:
             yield engine.next_reading()
 
-    def connect(self) -> bool:
+    def connect(
+        self,
+    ) -> bool:
         """Connect to the MQTT broker.
 
         Returns:
@@ -489,10 +657,18 @@ class VitalsSimulator:
         if result:
             self._connect_count += 1
             if self._connect_count % 10 == 0:
-                logger.info("MQTT connection count: %d", self._connect_count)
+                logger.info(
+                    "MQTT connection count: %d",
+                    self._connect_count,
+                )
         return result
 
-    def _generate_vital(self) -> Dict[str, Any]:
+    def _generate_vital(
+        self,
+    ) -> Dict[
+        str,
+        Any,
+    ]:
         """Generate the next v2 vital-signs payload dict.
 
         Consumes one reading from the internal source iterator, computes
@@ -520,17 +696,25 @@ class VitalsSimulator:
             quality=raw["quality"],
             source=self._source,
             sepsis_onset_ts=raw.get("sepsis_onset_ts"),
-            altered_mentation=raw.get("altered_mentation", False),
+            altered_mentation=raw.get(
+                "altered_mentation",
+                False,
+            ),
         )
         return payload.to_dict()
 
-    def run(self) -> None:
+    def run(
+        self,
+    ) -> None:
         """Main event loop: publishes v2 vitals every publish_interval_s seconds.
 
         Runs until shutdown() is called or a KeyboardInterrupt is raised.
         Reconnects automatically if the broker drops the connection.
         """
-        logger.info("VitalsSimulator v2 starting – scenario=%s", self.scenario)
+        logger.info(
+            "VitalsSimulator v2 starting – scenario=%s",
+            self.scenario,
+        )
         self._running = True
         self.connect()
         while self._running:
@@ -539,21 +723,39 @@ class VitalsSimulator:
                 self.connect()
 
             vital = self._generate_vital()
-            validate_before_publish(vital, self._runtime_schema)
+            validate_before_publish(
+                vital,
+                self._runtime_schema,
+            )
             payload = json.dumps(vital)
-            success = self.mqtt_client.publish(config.MQTT_TOPIC, payload, qos=config.MQTT_QOS)
+            success = self.mqtt_client.publish(
+                config.MQTT_TOPIC,
+                payload,
+                qos=config.MQTT_QOS,
+            )
             if success:
                 self._publish_count += 1
                 if self._publish_count % 100 == 0:
-                    logger.info("Published %d vitals so far", self._publish_count)
+                    logger.info(
+                        "Published %d vitals so far",
+                        self._publish_count,
+                    )
             else:
-                logger.warning("Failed to publish vital reading #%d", self._publish_count + 1)
+                logger.warning(
+                    "Failed to publish vital reading #%d",
+                    self._publish_count + 1,
+                )
 
             time.sleep(self.publish_interval_s)
 
-    def shutdown(self) -> None:
+    def shutdown(
+        self,
+    ) -> None:
         """Gracefully stop the event loop and close the MQTT connection."""
-        logger.info("VitalsSimulator shutting down after %d publishes", self._publish_count)
+        logger.info(
+            "VitalsSimulator shutting down after %d publishes",
+            self._publish_count,
+        )
         self._running = False
         self.mqtt_client.publish_status("offline")
         self.mqtt_client.disconnect()
@@ -568,9 +770,19 @@ _VALID_SCENARIOS = list(config.SCENARIOS.keys())
 
 def _configure_logging() -> None:
     """Configure root logger from the LOGLEVEL environment variable."""
-    log_level = os.environ.get("LOGLEVEL", "INFO").upper()
-    numeric = getattr(logging, log_level, logging.INFO)
-    logging.basicConfig(format=_LOG_FORMAT, level=numeric)
+    log_level = os.environ.get(
+        "LOGLEVEL",
+        "INFO",
+    ).upper()
+    numeric = getattr(
+        logging,
+        log_level,
+        logging.INFO,
+    )
+    logging.basicConfig(
+        format=_LOG_FORMAT,
+        level=numeric,
+    )
 
 
 def main() -> None:
@@ -581,7 +793,10 @@ def main() -> None:
     parser.add_argument(
         "--scenario",
         choices=_VALID_SCENARIOS,
-        default=os.environ.get("SCENARIO", "healthy"),
+        default=os.environ.get(
+            "SCENARIO",
+            "healthy",
+        ),
         help="Vital-signs scenario to simulate (default: healthy)",
     )
     parser.add_argument(

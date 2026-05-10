@@ -149,6 +149,7 @@ jobs:
         run: |
           test -d data/synthea/demo/csv
           pytest -v --maxfail=1 \
+            tests/test_contract_pin_metadata.py \
             tests/test_contract_schema_v2.py \
             tests/test_demo_dataset.py
 

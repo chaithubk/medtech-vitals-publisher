@@ -19,7 +19,7 @@ COPY mosquitto.conf /etc/mosquitto/mosquitto.conf
 
 # Install the vendored runtime schema at the device rootfs path expected by the app.
 RUN mkdir -p /usr/share/medtech/contracts/vitals && \
-    cp ./contracts/vitals/current.json /usr/share/medtech/contracts/vitals/current.json
+    cp ./contracts/vitals/vitals.schema.json /usr/share/medtech/contracts/vitals/vitals.schema.json
 
 # Startup script: launch mosquitto broker then the Python simulator
 COPY entrypoint.sh /entrypoint.sh

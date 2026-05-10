@@ -225,7 +225,7 @@ python -m src --scenario sepsis --synthea-path data/synthea/csv --patient-id <uu
 | `SEED`                  | `42`                                                 | RNG seed for deterministic replay                         |
 | `PUBLISH_INTERVAL_S`    | `10`                                                 | Seconds between published readings                        |
 | `LOGLEVEL`              | `INFO`                                               | Logging verbosity                                         |
-| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/current.json`   | Runtime schema path (overrides device rootfs default)     |
+| `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/vitals.schema.json` | Runtime schema path (overrides device rootfs default) |
 
 ## Telemetry Contract
 
@@ -237,13 +237,13 @@ environments:
 
 | File | Purpose |
 |------|---------|
-| `contracts/vitals/current.json` | Active vendored JSON Schema used by CI/runtime packaging |
-| `contracts/VITALS_CONTRACT_VERSION.txt` | Pinned upstream contract tag |
+| `contracts/vitals/vitals.schema.json` | Active vendored JSON Schema used by CI/runtime packaging |
+| `contracts/vitals/contract-pin.json` | Machine-readable pin metadata (repo/tag/SHA/path/sync/compatibility) |
 | `contracts/README.md` | Update procedure and policy |
 
 > **Policy:** Every v2 payload published by this service must validate against
-> `contracts/vitals/current.json`.  CI enforces this via
-> `tests/test_contract_schema_v2.py`.
+> `contracts/vitals/vitals.schema.json`. CI enforces this via
+> `tests/test_contract_schema_v2.py` and `tests/test_contract_pin_metadata.py`.
 
 ### Updating the vendored schema
 
@@ -268,16 +268,16 @@ python scripts/vendor_telemetry_contract.py --tag latest
 
 ### Drift detection
 
-A scheduled workflow (`.github/workflows/contract-drift-check.yml`) runs daily
-and when a newer tag exists, automatically triggers the vendoring workflow to
-open/update a PR with the schema update and version bumps.
+Primary mechanism is release-driven (repository dispatch from contract release
+events). A scheduled workflow (`.github/workflows/contract-drift-check.yml`) is
+kept as a fallback and checks weekly for missed updates.
 
 ### Runtime contract enforcement
 
 In production (Yocto image), the device rootfs ships the canonical schema at:
 
 ```
-/usr/share/medtech/contracts/vitals/current.json
+/usr/share/medtech/contracts/vitals/vitals.schema.json
 ```
 
 The publisher **requires this schema file to be present** and loads it at
@@ -296,10 +296,10 @@ MEDTECH_VITALS_SCHEMA=/path/to/your/schema.json python -m src --scenario healthy
 ```
 
 > **Yocto note:** the contract recipe installs the schema to
-> `/usr/share/medtech/contracts/vitals/current.json`.  Setting
+> `/usr/share/medtech/contracts/vitals/vitals.schema.json`. Setting
 > `MEDTECH_VITALS_SCHEMA` is only necessary when the schema lives at a
 > non-default location (e.g. local development or alternative rootfs layouts).
-> The vendored CI schema (`contracts/vitals/current.json`) is used by CI tests
+> The vendored CI schema (`contracts/vitals/vitals.schema.json`) is used by CI tests
 > and is unaffected by the runtime path.
 
 
@@ -497,3 +497,7 @@ ps aux | grep mosquitto | grep -v grep
 # What ports is it listening on?
 netstat -lntp | grep -E '1883|9001'
 ```
+
+## Architecture Decision Records (ADR)
+
+- [ADR 0001: Contract Management Migration](docs/adr/0001-contract-management-migration.md)

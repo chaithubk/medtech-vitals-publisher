@@ -1,6 +1,8 @@
 name: Vendor Telemetry Contract
 
 on:
+  repository_dispatch:
+    types: [contract-release-published]
   workflow_dispatch:
     inputs:
       tag:
@@ -36,7 +38,7 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.CD_PAT }}
-          INPUT_TAG: ${{ inputs.tag || github.event.inputs.tag }}
+          INPUT_TAG: ${{ inputs.tag || github.event.inputs.tag || github.event.client_payload.tag }}
         run: |
           if [ -n "$INPUT_TAG" ]; then
             echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
@@ -58,11 +60,30 @@ jobs:
 
       - name: Run vendoring script
         run: |
-          python scripts/vendor_telemetry_contract.py --tag "${{ steps.resolve.outputs.tag }}"
+          python scripts/vendor_telemetry_contract.py \
+            --tag "${{ steps.resolve.outputs.tag }}" \
+            --summary-file /tmp/vendor-pr-summary.md
 
-      - name: Set CD version to contract tag
+      - name: Read compatibility metadata
+        id: compat
         run: |
-          if git diff --quiet -- contracts/vitals/current.json contracts/VITALS_CONTRACT_VERSION.txt; then
+          export GITHUB_OUTPUT_PATH="$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          meta = json.loads(Path("contracts/vitals/contract-pin.json").read_text(encoding="utf-8"))
+          compat = meta.get("compatibility", {})
+          with open(Path(os.environ["GITHUB_OUTPUT_PATH"]), "a", encoding="utf-8") as out:
+              out.write(f"classification={compat.get('classification', 'unknown')}\\n")
+              out.write(f"breaking={str(bool(compat.get('breaking', False))).lower()}\\n")
+              out.write(f"tag={meta.get('tag', '')}\\n")
+          PY
+
+      - name: Set package version to contract tag
+        run: |
+          if git diff --quiet -- contracts/vitals/vitals.schema.json contracts/vitals/contract-pin.json; then
             echo "No contract file changes detected; skipping CD revision bump."
             exit 0
           fi
@@ -94,20 +115,22 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.CD_PAT }}
-          TAG: ${{ steps.resolve.outputs.tag }}
+          TAG: ${{ steps.compat.outputs.tag }}
+          CLASSIFICATION: ${{ steps.compat.outputs.classification }}
+          BREAKING: ${{ steps.compat.outputs.breaking }}
         run: |
           BRANCH="chore/vendor-telemetry-contract-${TAG}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git checkout -B "$BRANCH"
-          git add contracts/vitals contracts/VITALS_CONTRACT_VERSION.txt src/__init__.py
+          git add contracts/vitals src/__init__.py
           git commit -m "chore: vendor telemetry contract ${TAG}
 
-          Vendored contracts/vitals/current.json from:
+          Vendored contracts/vitals/vitals.schema.json from:
           chaithubk/medtech-telemetry-contract@${TAG}
 
-          Updated contracts/VITALS_CONTRACT_VERSION.txt to ${TAG}.
+          Updated contracts/vitals/contract-pin.json to ${TAG}.
           Bumped CD revision in src/__init__.py."
 
           git push --force-with-lease origin "$BRANCH"
@@ -119,20 +142,26 @@ jobs:
             --json number \
             --jq '.[0].number')
 
+          SUMMARY_FILE="/tmp/vendor-pr-summary.md"
+          if [ -f "$SUMMARY_FILE" ]; then
+            SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
+          else
+            SUMMARY_CONTENT="(No summary generated.)"
+          fi
+
           PR_BODY="## Automated contract update
 
-          This PR vendors the MedTech telemetry contract schema at tag **\`${TAG}\`** from
+          This PR vendors the MedTech telemetry contract from
           [chaithubk/medtech-telemetry-contract](https://github.com/chaithubk/medtech-telemetry-contract).
 
-          ### Changes
-          - \`contracts/vitals/current.json\` — updated to \`${TAG}\`
-          - \`contracts/VITALS_CONTRACT_VERSION.txt\` — pinned to \`${TAG}\`
-          - \`src/__init__.py\` — CD revision patch bump
+          ${SUMMARY_CONTENT}
 
-          ### Checklist
-          - [ ] Review schema diff below for breaking changes
-          - [ ] Confirm CI (contract schema validation test) passes
-          - [ ] Merge when green
+          ## Review Checklist
+
+          - [ ] Verify schema diff summary and compatibility class
+          - [ ] Confirm whether app code changes are needed
+          - [ ] Confirm CI contract and integration tests pass
+          - [ ] For breaking updates, complete migration checklist before merge
 
           _Generated automatically by the **Vendor Telemetry Contract** workflow._"
 
@@ -141,12 +170,20 @@ jobs:
             gh pr edit "$PR_NUMBER" \
               --title "chore: vendor telemetry contract ${TAG}" \
               --body "$PR_BODY"
+            gh pr edit "$PR_NUMBER" --add-label "contract-update" --add-label "compat:${CLASSIFICATION}" || true
           else
             gh pr create \
               --title "chore: vendor telemetry contract ${TAG}" \
               --body "$PR_BODY" \
               --base main \
               --head "$BRANCH"
+            CREATED_PR_NUMBER=$(gh pr list \
+              --head "$BRANCH" \
+              --base main \
+              --state open \
+              --json number \
+              --jq '.[0].number')
+            gh pr edit "$CREATED_PR_NUMBER" --add-label "contract-update" --add-label "compat:${CLASSIFICATION}" || true
           fi
 
       - name: No-op summary

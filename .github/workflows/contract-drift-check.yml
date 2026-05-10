@@ -1,9 +1,11 @@
 name: Contract Drift Check
 
 on:
+  repository_dispatch:
+    types: [contract-release-published]
   schedule:
-    # Run daily at 08:00 UTC
-    - cron: "0 8 * * *"
+    # Fallback check only (primary mechanism is release-driven dispatch)
+    - cron: "0 8 * * 1"
   workflow_dispatch: {}
 
 permissions:
@@ -11,13 +13,14 @@ permissions:
   pull-requests: write
 
 jobs:
-  drift-check:
-    name: Check for new telemetry contract tag
+  resolve:
+    name: Resolve target contract tag
     runs-on: ubuntu-latest
     outputs:
       drift: ${{ steps.compare.outputs.drift }}
       pinned: ${{ steps.pinned.outputs.version }}
       latest: ${{ steps.latest.outputs.latest }}
+      target: ${{ steps.target.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +28,16 @@ jobs:
       - name: Read pinned contract version
         id: pinned
         run: |
-          VERSION=$(cat contracts/VITALS_CONTRACT_VERSION.txt | tr -d '[:space:]')
+          VERSION=$(python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = Path("contracts/vitals/contract-pin.json")
+          if not p.exists():
+            raise SystemExit("Missing contracts/vitals/contract-pin.json")
+          print(json.loads(p.read_text(encoding="utf-8")).get("tag", ""))
+          PY
+          )
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Pinned contract version: $VERSION"
 
@@ -44,33 +56,47 @@ jobs:
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "Latest contract tag:  $LATEST"
 
+      - name: Resolve target tag (dispatch first, otherwise latest)
+        id: target
+        env:
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+        run: |
+          if [ -n "$DISPATCH_TAG" ]; then
+            echo "tag=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
+            echo "Using release-dispatch target tag: $DISPATCH_TAG"
+          else
+            echo "tag=$LATEST" >> "$GITHUB_OUTPUT"
+            echo "Using latest tag from API: $LATEST"
+          fi
+
       - name: Compare versions
         id: compare
         env:
           PINNED: ${{ steps.pinned.outputs.version }}
-          LATEST: ${{ steps.latest.outputs.latest }}
+          TARGET: ${{ steps.target.outputs.tag }}
         run: |
           echo "Pinned : $PINNED"
-          echo "Latest : $LATEST"
-          if [ "$PINNED" = "$LATEST" ]; then
+          echo "Target : $TARGET"
+          if [ "$PINNED" = "$TARGET" ]; then
             echo "drift=false" >> "$GITHUB_OUTPUT"
-            echo "✅ Contract is up to date (pinned == latest: $PINNED)."
+            echo "✅ Contract is up to date (pinned == target: $PINNED)."
           else
             echo "drift=true" >> "$GITHUB_OUTPUT"
             echo ""
             echo "⚠️  Contract drift detected."
             echo ""
             echo "   Current pin : $PINNED"
-            echo "   Latest tag  : $LATEST"
+            echo "   Target tag  : $TARGET"
             echo ""
-            echo "An automated vendoring PR will be created for tag $LATEST."
+            echo "An automated vendoring PR will be created for tag $TARGET."
           fi
 
   auto-vendor:
     name: Auto-create contract update PR
-    needs: drift-check
-    if: needs.drift-check.outputs.drift == 'true'
+    needs: resolve
+    if: needs.resolve.outputs.drift == 'true'
     uses: ./.github/workflows/vendor-telemetry-contract.yml
     with:
-      tag: ${{ needs.drift-check.outputs.latest }}
+      tag: ${{ needs.resolve.outputs.target }}
     secrets: inherit

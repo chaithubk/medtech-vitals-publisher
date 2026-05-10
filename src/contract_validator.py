@@ -2,7 +2,7 @@
 
 This module loads the JSON Schema from the device rootfs
 (``MEDTECH_VITALS_SCHEMA`` or the default path
-``/usr/share/medtech/contracts/vitals/current.json``) and validates every
+``/usr/share/medtech/contracts/vitals/vitals.schema.json``) and validates every
 outbound payload before it is published.
 
 The schema is loaded **once** at startup via :func:`initialize_runtime_schema`

@@ -2,7 +2,7 @@
 
 Validates that the v2 payload produced by the current production code path
 conforms to the vendored telemetry contract schema in
-``contracts/vitals/current.json``.
+``contracts/vitals/vitals.schema.json``.
 
 Any drift between the publisher output and the pinned contract will cause
 this test to fail immediately, making schema mismatch visible in CI before
@@ -24,7 +24,7 @@ from src.synthea_bridge import SyntheaBridge
 # ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).parent.parent
-_SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "current.json"
+_SCHEMA_PATH = _REPO_ROOT / "contracts" / "vitals" / "vitals.schema.json"
 _DEMO_CSV = _REPO_ROOT / "data" / "synthea" / "demo" / "csv"
 _DEMO_SEPSIS_PATIENT = "79590754-4679-dafd-8aab-103706580fff"
 

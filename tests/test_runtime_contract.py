@@ -31,7 +31,7 @@ from src.schema import build_payload
 # ---------------------------------------------------------------------------
 
 
-_VENDORED_SCHEMA = Path(__file__).parent.parent / "contracts" / "vitals" / "current.json"
+_VENDORED_SCHEMA = Path(__file__).parent.parent / "contracts" / "vitals" / "vitals.schema.json"
 
 
 def _make_valid_payload() -> dict:
@@ -74,7 +74,7 @@ class TestSchemaPathResolution:
             import importlib
 
             importlib.reload(cfg_module)
-            assert cfg_module.VITALS_SCHEMA_PATH == ("/usr/share/medtech/contracts/vitals/current.json")
+            assert cfg_module.VITALS_SCHEMA_PATH == ("/usr/share/medtech/contracts/vitals/vitals.schema.json")
 
     def test_env_override_changes_path(self, tmp_path):
         """MEDTECH_VITALS_SCHEMA overrides the default schema path."""

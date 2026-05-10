@@ -45,7 +45,7 @@ SEED: int = _get_int_env("SEED", 42)
 # Default path matches the Yocto rootfs install location; override with MEDTECH_VITALS_SCHEMA.
 VITALS_SCHEMA_PATH: str = os.environ.get(
     "MEDTECH_VITALS_SCHEMA",
-    "/usr/share/medtech/contracts/vitals/current.json",
+    "/usr/share/medtech/contracts/vitals/vitals.schema.json",
 )
 
 # Vital-sign ranges and quality scores per scenario (v1 legacy — kept for backward

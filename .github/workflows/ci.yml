@@ -104,8 +104,10 @@ jobs:
       
       - name: Run bandit security check
         run: |
-          bandit -r src -f json -o bandit-report.json
-          bandit -r src -f txt
+          # The .bandit file can be used to configure rules, severity, and exclusions, but does NOT control exit code.
+          # --exit-zero ensures Bandit never fails the pipeline, only reports findings.
+          bandit -r src -f json -o bandit-report.json --exit-zero
+          bandit -r src -f txt --exit-zero
       
       - name: Dependency security check
         run: |

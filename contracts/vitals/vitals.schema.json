@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/v2.0.json",
-  "title": "MedTech Vitals Telemetry Payload v2.0",
-  "description": "JSON Schema for the v2.0 vitals telemetry payload published on MQTT topic medtech/vitals/latest.",
+  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/v2.1.json",
+  "title": "MedTech Vitals Telemetry Payload v2.1.0",
+  "description": "JSON Schema for the v2.1.0 vitals telemetry payload published on MQTT topic medtech/vitals/latest.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -31,8 +31,8 @@
   "properties": {
     "version": {
       "type": "string",
-      "const": "2.0",
-      "description": "Schema version. Must be exactly '2.0' for this contract."
+      "const": "2.1.0",
+      "description": "Schema version. Must be exactly '2.1.0' for this contract."
     },
     "patient_id": {
       "type": "string",

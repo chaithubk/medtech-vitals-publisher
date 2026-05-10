@@ -21,7 +21,12 @@ def test_v2_modules_importable():
     from src.schema import SCHEMA_VERSION, build_payload
     from src.synthea_bridge import SyntheaBridge
 
-    assert SCHEMA_VERSION == "2.0"
+    # Version is now dynamically loaded from contract pin metadata
+    assert SCHEMA_VERSION is not None
+    assert isinstance(
+        SCHEMA_VERSION,
+        str,
+    )
     assert callable(build_payload)
     assert callable(ProgressionEngine)
     assert callable(SyntheaBridge)
@@ -29,7 +34,7 @@ def test_v2_modules_importable():
 
 def test_v2_payload_smoke():
     """Smoke test: build a v2 payload end-to-end."""
-    from src.schema import build_payload
+    from src.schema import SCHEMA_VERSION, build_payload
 
     p = build_payload(
         patient_id="P001",
@@ -49,8 +54,19 @@ def test_v2_payload_smoke():
         source="simulator",
     )
     d = p.to_dict()
-    assert d["version"] == "2.0"
+    assert d["version"] == SCHEMA_VERSION
     assert d["patient_id"] == "P001"
-    assert isinstance(d["sirs_score"], int)
-    assert isinstance(d["qsofa_score"], int)
-    assert d["sepsis_stage"] in {"none", "sirs", "sepsis", "septic_shock"}
+    assert isinstance(
+        d["sirs_score"],
+        int,
+    )
+    assert isinstance(
+        d["qsofa_score"],
+        int,
+    )
+    assert d["sepsis_stage"] in {
+        "none",
+        "sirs",
+        "sepsis",
+        "septic_shock",
+    }

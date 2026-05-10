@@ -75,17 +75,60 @@ logger = logging.getLogger(__name__)
 # LOINC → v2 field mapping
 # ---------------------------------------------------------------------------
 
-_LOINC_MAP: Dict[str, Tuple[str, float, float]] = {
+_LOINC_MAP: Dict[
+    str,
+    Tuple[
+        str,
+        float,
+        float,
+    ],
+] = {
     # code: (field_name, unit_scale_to_standard, fallback_value)
-    "8867-4": ("hr", 1.0, 75.0),
-    "8480-6": ("bp_sys", 1.0, 120.0),
-    "8462-4": ("bp_dia", 1.0, 80.0),
-    "59408-5": ("o2_sat", 1.0, 98.0),
-    "8310-5": ("temperature", 1.0, 37.0),
-    "9279-1": ("respiratory_rate", 1.0, 16.0),
-    "6690-2": ("wbc", 1.0, 7.5),  # ×10³/µL
-    "2524-7": ("lactate", 1.0, 1.0),  # mmol/L
-    "2160-0": ("creatinine", 1.0, 0.9),  # mg/dL
+    "8867-4": (
+        "hr",
+        1.0,
+        75.0,
+    ),
+    "8480-6": (
+        "bp_sys",
+        1.0,
+        120.0,
+    ),
+    "8462-4": (
+        "bp_dia",
+        1.0,
+        80.0,
+    ),
+    "59408-5": (
+        "o2_sat",
+        1.0,
+        98.0,
+    ),
+    "8310-5": (
+        "temperature",
+        1.0,
+        37.0,
+    ),
+    "9279-1": (
+        "respiratory_rate",
+        1.0,
+        16.0,
+    ),
+    "6690-2": (
+        "wbc",
+        1.0,
+        7.5,
+    ),  # ×10³/µL
+    "2524-7": (
+        "lactate",
+        1.0,
+        1.0,
+    ),  # mmol/L
+    "2160-0": (
+        "creatinine",
+        1.0,
+        0.9,
+    ),  # mg/dL
 }
 
 # ---------------------------------------------------------------------------
@@ -101,7 +144,10 @@ class SyntheaBridge:
                  least ``observations.csv``.
     """
 
-    def __init__(self, csv_dir: str) -> None:
+    def __init__(
+        self,
+        csv_dir: str,
+    ) -> None:
         """Initialise the bridge.
 
         Args:
@@ -121,22 +167,33 @@ class SyntheaBridge:
     # Public helpers
     # ------------------------------------------------------------------
 
-    def list_patients(self) -> List[str]:
+    def list_patients(
+        self,
+    ) -> List[str]:
         """Return all unique patient IDs present in ``observations.csv``.
 
         Returns:
             Sorted list of patient UUID strings.
         """
         patients: set = set()
-        with open(self._obs_path, newline="", encoding="utf-8") as fh:
+        with open(
+            self._obs_path,
+            newline="",
+            encoding="utf-8",
+        ) as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                pid = row.get("PATIENT", "").strip()
+                pid = row.get(
+                    "PATIENT",
+                    "",
+                ).strip()
                 if pid:
                     patients.add(pid)
         return sorted(patients)
 
-    def list_sepsis_patients(self) -> List[str]:
+    def list_sepsis_patients(
+        self,
+    ) -> List[str]:
         """Return patient IDs that have at least one sepsis-related LOINC observation.
 
         Heuristic: a patient with HR > 100 or Temp > 38.5 is flagged as a
@@ -146,12 +203,25 @@ class SyntheaBridge:
             Sorted list of patient UUID strings.
         """
         candidates: set = set()
-        with open(self._obs_path, newline="", encoding="utf-8") as fh:
+        with open(
+            self._obs_path,
+            newline="",
+            encoding="utf-8",
+        ) as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                code = row.get("CODE", "").strip()
-                pid = row.get("PATIENT", "").strip()
-                raw_val = row.get("VALUE", "").strip()
+                code = row.get(
+                    "CODE",
+                    "",
+                ).strip()
+                pid = row.get(
+                    "PATIENT",
+                    "",
+                ).strip()
+                raw_val = row.get(
+                    "VALUE",
+                    "",
+                ).strip()
                 if not pid or not raw_val:
                     continue
                 try:
@@ -166,7 +236,9 @@ class SyntheaBridge:
         candidates.update(self.list_sepsis_patients_from_conditions())
         return sorted(candidates)
 
-    def list_sepsis_patients_from_conditions(self) -> List[str]:
+    def list_sepsis_patients_from_conditions(
+        self,
+    ) -> List[str]:
         """Return patient IDs with a recorded Sepsis diagnosis in ``conditions.csv``.
 
         Matches rows where ``CODE`` is SNOMED-CT ``91302008`` (Sepsis disorder).
@@ -178,16 +250,32 @@ class SyntheaBridge:
         patients: set = set()
         if not self._conditions_path.exists():
             return []
-        with open(self._conditions_path, newline="", encoding="utf-8") as fh:
+        with open(
+            self._conditions_path,
+            newline="",
+            encoding="utf-8",
+        ) as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                if row.get("CODE", "").strip() == "91302008":
-                    pid = row.get("PATIENT", "").strip()
+                if (
+                    row.get(
+                        "CODE",
+                        "",
+                    ).strip()
+                    == "91302008"
+                ):
+                    pid = row.get(
+                        "PATIENT",
+                        "",
+                    ).strip()
                     if pid:
                         patients.add(pid)
         return sorted(patients)
 
-    def get_sepsis_onset_ts(self, patient_id: str) -> Optional[int]:
+    def get_sepsis_onset_ts(
+        self,
+        patient_id: str,
+    ) -> Optional[int]:
         """Return the sepsis onset timestamp (ms UTC) from ``conditions.csv``.
 
         Looks for SNOMED-CT code ``91302008`` (Sepsis disorder) for the given
@@ -201,13 +289,26 @@ class SyntheaBridge:
         """
         if not self._conditions_path.exists():
             return None
-        with open(self._conditions_path, newline="", encoding="utf-8") as fh:
+        with open(
+            self._conditions_path,
+            newline="",
+            encoding="utf-8",
+        ) as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                code = row.get("CODE", "").strip()
-                pid = row.get("PATIENT", "").strip()
+                code = row.get(
+                    "CODE",
+                    "",
+                ).strip()
+                pid = row.get(
+                    "PATIENT",
+                    "",
+                ).strip()
                 if code == "91302008" and pid == patient_id:
-                    date_str = row.get("START", "").strip()
+                    date_str = row.get(
+                        "START",
+                        "",
+                    ).strip()
                     if date_str:
                         return _parse_date_to_ms(date_str)
         return None
@@ -216,7 +317,12 @@ class SyntheaBridge:
         self,
         patient_id: str,
         fallback_engine: Optional[Any] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[
+        Dict[
+            str,
+            Any,
+        ]
+    ]:
         """Load all vital observations for a patient and return as v2-compatible dicts.
 
         Rows are grouped by timestamp.  Missing v2 fields are filled in from
@@ -232,16 +338,37 @@ class SyntheaBridge:
         """
         raw_rows = self._read_patient_observations(patient_id)
         if not raw_rows:
-            logger.warning("No observations found for requested patient in %s", self._obs_path)
+            logger.warning(
+                "No observations found for requested patient in %s",
+                self._obs_path,
+            )
             return []
 
         # Group by timestamp
-        grouped: Dict[int, Dict[str, float]] = {}
-        for ts_ms, field, value in raw_rows:
-            bucket = grouped.setdefault(ts_ms, {})
+        grouped: Dict[
+            int,
+            Dict[
+                str,
+                float,
+            ],
+        ] = {}
+        for (
+            ts_ms,
+            field,
+            value,
+        ) in raw_rows:
+            bucket = grouped.setdefault(
+                ts_ms,
+                {},
+            )
             bucket[field] = value
 
-        results: List[Dict[str, Any]] = []
+        results: List[
+            Dict[
+                str,
+                Any,
+            ]
+        ] = []
         for ts_ms in sorted(grouped.keys()):
             obs = grouped[ts_ms]
 
@@ -251,20 +378,62 @@ class SyntheaBridge:
             else:
                 fb = _default_vitals(ts_ms)
 
-            reading: Dict[str, Any] = {
-                "scenario_stage": fb.get("scenario_stage", "pre_sepsis"),
+            reading: Dict[
+                str,
+                Any,
+            ] = {
+                "scenario_stage": fb.get(
+                    "scenario_stage",
+                    "pre_sepsis",
+                ),
                 "timestamp": ts_ms,
-                "hr": obs.get("hr", fb["hr"]),
-                "bp_sys": obs.get("bp_sys", fb["bp_sys"]),
-                "bp_dia": obs.get("bp_dia", fb["bp_dia"]),
-                "o2_sat": obs.get("o2_sat", fb["o2_sat"]),
-                "temperature": obs.get("temperature", fb["temperature"]),
-                "respiratory_rate": obs.get("respiratory_rate", fb["respiratory_rate"]),
-                "wbc": obs.get("wbc", fb["wbc"]),
-                "lactate": obs.get("lactate", fb["lactate"]),
-                "creatinine": obs.get("creatinine", fb.get("creatinine", 0.9)),
-                "altered_mentation": fb.get("altered_mentation", False),
-                "quality": fb.get("quality", "good"),
+                "hr": obs.get(
+                    "hr",
+                    fb["hr"],
+                ),
+                "bp_sys": obs.get(
+                    "bp_sys",
+                    fb["bp_sys"],
+                ),
+                "bp_dia": obs.get(
+                    "bp_dia",
+                    fb["bp_dia"],
+                ),
+                "o2_sat": obs.get(
+                    "o2_sat",
+                    fb["o2_sat"],
+                ),
+                "temperature": obs.get(
+                    "temperature",
+                    fb["temperature"],
+                ),
+                "respiratory_rate": obs.get(
+                    "respiratory_rate",
+                    fb["respiratory_rate"],
+                ),
+                "wbc": obs.get(
+                    "wbc",
+                    fb["wbc"],
+                ),
+                "lactate": obs.get(
+                    "lactate",
+                    fb["lactate"],
+                ),
+                "creatinine": obs.get(
+                    "creatinine",
+                    fb.get(
+                        "creatinine",
+                        0.9,
+                    ),
+                ),
+                "altered_mentation": fb.get(
+                    "altered_mentation",
+                    False,
+                ),
+                "quality": fb.get(
+                    "quality",
+                    "good",
+                ),
                 "sepsis_onset_ts": fb.get("sepsis_onset_ts"),
             }
             results.append(reading)
@@ -276,7 +445,12 @@ class SyntheaBridge:
         patient_id: str,
         fallback_engine: Optional[Any] = None,
         loop: bool = True,
-    ) -> Iterator[Dict[str, Any]]:
+    ) -> Iterator[
+        Dict[
+            str,
+            Any,
+        ]
+    ]:
         """Yield vital readings for a patient, optionally looping indefinitely.
 
         Timestamps are re-anchored to the current wall-clock on the first
@@ -290,7 +464,10 @@ class SyntheaBridge:
         Yields:
             Vital reading dicts (same structure as :meth:`load_patient` output).
         """
-        readings = self.load_patient(patient_id, fallback_engine=fallback_engine)
+        readings = self.load_patient(
+            patient_id,
+            fallback_engine=fallback_engine,
+        )
         if not readings:
             if fallback_engine is not None and loop:
                 logger.warning(
@@ -300,7 +477,10 @@ class SyntheaBridge:
                 while True:
                     yield fallback_engine.next_reading()
             else:
-                logger.warning("No readings for patient '%s'; yielding nothing.", patient_id)
+                logger.warning(
+                    "No readings for patient '%s'; yielding nothing.",
+                    patient_id,
+                )
             return
 
         # Compute the interval to advance timestamps on each loop cycle.
@@ -310,7 +490,10 @@ class SyntheaBridge:
             span_ms = readings[-1]["timestamp"] - readings[0]["timestamp"]
             # Guard: if all readings share the same timestamp, fall back to default interval
             avg_interval_ms = span_ms // (len(readings) - 1) if span_ms > 0 else 1_000
-            loop_offset_ms = max(1_000, span_ms + avg_interval_ms)
+            loop_offset_ms = max(
+                1_000,
+                span_ms + avg_interval_ms,
+            )
         else:
             loop_offset_ms = 1_000  # default 1 s when only one reading
 
@@ -321,7 +504,10 @@ class SyntheaBridge:
         while True:
             for r in readings:
                 anchored_ts = now_ms + (r["timestamp"] - base_ts) + cycle * loop_offset_ms
-                yield {**r, "timestamp": anchored_ts}
+                yield {
+                    **r,
+                    "timestamp": anchored_ts,
+                }
             if not loop:
                 break
             cycle += 1
@@ -330,7 +516,16 @@ class SyntheaBridge:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _read_patient_observations(self, patient_id: str) -> List[Tuple[int, str, float]]:
+    def _read_patient_observations(
+        self,
+        patient_id: str,
+    ) -> List[
+        Tuple[
+            int,
+            str,
+            float,
+        ]
+    ]:
         """Parse observations.csv and return (timestamp_ms, field, value) tuples.
 
         Args:
@@ -339,17 +534,39 @@ class SyntheaBridge:
         Returns:
             List of (timestamp_ms, field_name, value) tuples.
         """
-        rows: List[Tuple[int, str, float]] = []
+        rows: List[
+            Tuple[
+                int,
+                str,
+                float,
+            ]
+        ] = []
 
-        with open(self._obs_path, newline="", encoding="utf-8") as fh:
+        with open(
+            self._obs_path,
+            newline="",
+            encoding="utf-8",
+        ) as fh:
             reader = csv.DictReader(fh)
             for row in reader:
-                if row.get("PATIENT", "").strip() != patient_id:
+                if (
+                    row.get(
+                        "PATIENT",
+                        "",
+                    ).strip()
+                    != patient_id
+                ):
                     continue
-                code = row.get("CODE", "").strip()
+                code = row.get(
+                    "CODE",
+                    "",
+                ).strip()
                 if code not in _LOINC_MAP:
                     continue
-                raw_val = row.get("VALUE", "").strip()
+                raw_val = row.get(
+                    "VALUE",
+                    "",
+                ).strip()
                 if not raw_val:
                     continue
                 try:
@@ -357,11 +574,27 @@ class SyntheaBridge:
                 except ValueError:
                     continue
 
-                date_str = row.get("DATE", "").strip()
+                date_str = row.get(
+                    "DATE",
+                    "",
+                ).strip()
                 ts_ms = _parse_date_to_ms(date_str)
 
-                field_name, scale, _ = _LOINC_MAP[code]
-                rows.append((ts_ms, field_name, round(value * scale, 1)))
+                (
+                    field_name,
+                    scale,
+                    _,
+                ) = _LOINC_MAP[code]
+                rows.append(
+                    (
+                        ts_ms,
+                        field_name,
+                        round(
+                            value * scale,
+                            1,
+                        ),
+                    )
+                )
 
         return rows
 
@@ -371,7 +604,9 @@ class SyntheaBridge:
 # ---------------------------------------------------------------------------
 
 
-def _parse_date_to_ms(date_str: str) -> int:
+def _parse_date_to_ms(
+    date_str: str,
+) -> int:
     """Convert a Synthea DATE string to ms-epoch (UTC).
 
     Synthea uses ISO 8601 format: ``YYYY-MM-DDTHH:MM:SS`` or ``YYYY-MM-DD``.
@@ -384,18 +619,30 @@ def _parse_date_to_ms(date_str: str) -> int:
     Returns:
         Integer milliseconds since Unix epoch (UTC).
     """
-    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d",
+    ):
         try:
-            dt = datetime.datetime.strptime(date_str, fmt).replace(tzinfo=datetime.timezone.utc)
+            dt = datetime.datetime.strptime(
+                date_str,
+                fmt,
+            ).replace(tzinfo=datetime.timezone.utc)
             return int(dt.timestamp() * 1000)
         except ValueError:
             continue
     # Fallback: use current time
-    logger.warning("Cannot parse date '%s'; using current time", date_str)
+    logger.warning(
+        "Cannot parse date '%s'; using current time",
+        date_str,
+    )
     return int(time.time() * 1000)
 
 
-def _default_vitals(ts_ms: int) -> Dict[str, Any]:
+def _default_vitals(
+    ts_ms: int,
+) -> Dict[str, Any]:
     """Return a minimal set of default vital values for missing observations.
 
     Args:

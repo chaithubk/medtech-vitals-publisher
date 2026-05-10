@@ -6,7 +6,10 @@ All runtime-tunable values are read from environment variables with sensible def
 import os
 
 
-def _get_int_env(name: str, default: int) -> int:
+def _get_int_env(
+    name: str,
+    default: int,
+) -> int:
     """Parse an integer environment variable with a safe fallback.
 
     Args:
@@ -26,20 +29,41 @@ def _get_int_env(name: str, default: int) -> int:
 
 
 # MQTT connection settings
-MQTT_BROKER: str = os.environ.get("MQTT_BROKER", "localhost")
-MQTT_PORT: int = _get_int_env("MQTT_PORT", 1883)
+MQTT_BROKER: str = os.environ.get(
+    "MQTT_BROKER",
+    "localhost",
+)
+MQTT_PORT: int = _get_int_env(
+    "MQTT_PORT",
+    1883,
+)
 MQTT_TOPIC: str = "medtech/vitals/latest"
 MQTT_STATUS_TOPIC: str = "medtech/vitals/status"
 MQTT_QOS: int = 1
 
 # Publishing cadence (override with PUBLISH_INTERVAL_S env var or --interval CLI flag)
-PUBLISH_INTERVAL_S: int = _get_int_env("PUBLISH_INTERVAL_S", 1)
+PUBLISH_INTERVAL_S: int = _get_int_env(
+    "PUBLISH_INTERVAL_S",
+    1,
+)
 
 # Patient / simulation settings
-PATIENT_ID: str = os.environ.get("PATIENT_ID", "P001")
-SYNTHEA_DATA_PATH: str = os.environ.get("SYNTHEA_DATA_PATH", "")
-SCENARIO_STAGE: str = os.environ.get("SCENARIO_STAGE", "")
-SEED: int = _get_int_env("SEED", 42)
+PATIENT_ID: str = os.environ.get(
+    "PATIENT_ID",
+    "P001",
+)
+SYNTHEA_DATA_PATH: str = os.environ.get(
+    "SYNTHEA_DATA_PATH",
+    "",
+)
+SCENARIO_STAGE: str = os.environ.get(
+    "SCENARIO_STAGE",
+    "",
+)
+SEED: int = _get_int_env(
+    "SEED",
+    42,
+)
 
 # Runtime contract validation
 # Default path matches the Yocto rootfs install location; override with MEDTECH_VITALS_SCHEMA.
@@ -52,27 +76,72 @@ VITALS_SCHEMA_PATH: str = os.environ.get(
 # compatibility; v2 ranges are defined in src/progression.py)
 SCENARIOS: dict = {
     "healthy": {
-        "hr": (60, 100),
-        "bp_sys": (90, 130),
-        "bp_dia": (60, 85),
-        "o2_sat": (95, 100),
-        "temp": (36.5, 37.5),
+        "hr": (
+            60,
+            100,
+        ),
+        "bp_sys": (
+            90,
+            130,
+        ),
+        "bp_dia": (
+            60,
+            85,
+        ),
+        "o2_sat": (
+            95,
+            100,
+        ),
+        "temp": (
+            36.5,
+            37.5,
+        ),
         "quality": 95,
     },
     "sepsis": {
-        "hr": (110, 140),
-        "bp_sys": (100, 160),
-        "bp_dia": (65, 100),
-        "o2_sat": (90, 95),
-        "temp": (38.5, 40),
+        "hr": (
+            110,
+            140,
+        ),
+        "bp_sys": (
+            100,
+            160,
+        ),
+        "bp_dia": (
+            65,
+            100,
+        ),
+        "o2_sat": (
+            90,
+            95,
+        ),
+        "temp": (
+            38.5,
+            40,
+        ),
         "quality": 85,
     },
     "critical": {
-        "hr": (140, 180),
-        "bp_sys": (80, 200),
-        "bp_dia": (40, 120),
-        "o2_sat": (60, 90),
-        "temp": (40, 42),
+        "hr": (
+            140,
+            180,
+        ),
+        "bp_sys": (
+            80,
+            200,
+        ),
+        "bp_dia": (
+            40,
+            120,
+        ),
+        "o2_sat": (
+            60,
+            90,
+        ),
+        "temp": (
+            40,
+            42,
+        ),
         "quality": 75,
     },
 }

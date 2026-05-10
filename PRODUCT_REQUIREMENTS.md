@@ -1,4 +1,4 @@
-# Product Requirements: Vitals Publisher v2
+# Product Requirements: Vitals Publisher v2.1
 
 ## Problem
 
@@ -41,13 +41,13 @@ live patient data.
 - **QoS:** 1 (at-least-once delivery)
 - **Frequency:** Every 10 seconds (configurable via `PUBLISH_INTERVAL_S` / `--interval`)
 - **Payload:** JSON — v2 schema (see below)
-- **Schema version sentinel:** `"version": "2.0"` in every message
+- **Schema version sentinel:** `"version": "2.1.0"` in every message (dynamically loaded from contract pin)
 
 ## v2 Payload Schema
 
 ```json
 {
-  "version": "2.0",
+  "version": "2.1.0",
   "patient_id": "P001",
   "scenario": "sepsis",
   "scenario_stage": "sepsis_onset",

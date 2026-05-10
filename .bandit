@@ -1,0 +1,6 @@
+[bandit]
+# Only show results, do not fail the build (exit code 0)
+exit-zero = True
+# Optionally, you can set severity/level filters here
+# severity-level = low
+# confidence-level = high

@@ -16,7 +16,7 @@ import jsonschema
 import pytest
 
 from src.progression import ProgressionEngine
-from src.schema import build_payload
+from src.schema import SCHEMA_VERSION, build_payload
 from src.synthea_bridge import SyntheaBridge
 
 # ---------------------------------------------------------------------------
@@ -255,21 +255,26 @@ class TestContractCompliance:
         self,
         vitals_schema,
     ):
-        """version field must match the contract schema's required version.
+        """version field must satisfy contract constraints and pin metadata.
 
-        The version is dynamically loaded from the contract pin metadata,
-        so this test verifies that the payload version matches whatever
-        version the contract schema requires.
+        The publisher emits version from pinned contract metadata.
+        Schema constraints may be expressed as const, enum, or pattern.
         """
         payload = _generate_payload("healthy")
         jsonschema.validate(
             instance=payload,
             schema=vitals_schema,
         )
-        # The schema's version property has a 'const' field that specifies
-        # exactly what version is required
-        expected_version = vitals_schema["properties"]["version"]["const"]
-        assert payload["version"] == expected_version
+        version_schema = vitals_schema["properties"]["version"]
+
+        # Always verify publisher output is sourced from contract pin metadata.
+        assert payload["version"] == SCHEMA_VERSION
+
+        # Support both legacy and current schema conventions.
+        if "const" in version_schema:
+            assert payload["version"] == version_schema["const"]
+        elif "enum" in version_schema:
+            assert payload["version"] in version_schema["enum"]
 
     def test_quality_is_string(
         self,

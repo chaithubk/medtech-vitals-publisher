@@ -1,16 +1,16 @@
 {
   "contract_repo": "chaithubk/medtech-telemetry-contract",
-  "tag": "v2.1.0",
-  "commit_sha": "40e047f9824993200f24ba3dd9a59c9e062977e6",
+  "tag": "v2.1.1",
+  "commit_sha": "7f71ce41544b56d70ca4c94971730cfce1331e71",
   "schema_path": "schemas/vitals/vitals.schema.json",
-  "resolved_schema_path": "schemas/vitals/v2.1.json",
+  "resolved_schema_path": "schemas/vitals/vitals.schema.json",
   "local_schema": "contracts/vitals/vitals.schema.json",
-  "synced_at_utc": "2026-05-10T14:20:06Z",
+  "synced_at_utc": "2026-05-11T10:59:33Z",
   "compatibility": {
-    "classification": "patch",
-    "breaking": false,
-    "source": "semver",
-    "release_notes_breaking_hint": false
+    "classification": "breaking",
+    "breaking": true,
+    "source": "release_notes",
+    "release_notes_breaking_hint": true
   },
   "schema_diff": {
     "required_added": [],

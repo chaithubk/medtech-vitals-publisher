@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/v2.1.json",
-  "title": "MedTech Vitals Telemetry Payload v2.1.0",
-  "description": "JSON Schema for the v2.1.0 vitals telemetry payload published on MQTT topic medtech/vitals/latest.",
+  "$id": "https://github.com/chaithubk/medtech-telemetry-contract/schemas/vitals/vitals.schema.json",
+  "title": "MedTech Vitals Telemetry Payload",
+  "description": "Canonical JSON Schema for MedTech vitals telemetry. See CHANGELOG.md for version history and breaking changes.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -31,8 +31,8 @@
   "properties": {
     "version": {
       "type": "string",
-      "const": "2.1.0",
-      "description": "Schema version. Must be exactly '2.1.0' for this contract."
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Contract version in SemVer format (MAJOR.MINOR.PATCH) produced by the publisher. Consumers may enforce accepted ranges."
     },
     "patient_id": {
       "type": "string",
@@ -86,7 +86,7 @@
     },
     "temperature": {
       "type": "number",
-      "description": "Body temperature in degrees Celsius (°C)."
+      "description": "Body temperature in degrees Celsius (C)."
     },
     "respiratory_rate": {
       "type": "number",
@@ -95,7 +95,7 @@
     },
     "wbc": {
       "type": "number",
-      "description": "White blood cell count in thousands per microliter (10³/µL).",
+      "description": "White blood cell count in thousands per microliter (10^3/uL).",
       "minimum": 0
     },
     "lactate": {
@@ -114,13 +114,13 @@
     },
     "sirs_score": {
       "type": "integer",
-      "description": "Systemic Inflammatory Response Syndrome (SIRS) score (0–4).",
+      "description": "Systemic Inflammatory Response Syndrome (SIRS) score (0-4).",
       "minimum": 0,
       "maximum": 4
     },
     "qsofa_score": {
       "type": "integer",
-      "description": "Quick Sequential Organ Failure Assessment (qSOFA) score (0–3).",
+      "description": "Quick Sequential Organ Failure Assessment (qSOFA) score (0-3).",
       "minimum": 0,
       "maximum": 3
     },

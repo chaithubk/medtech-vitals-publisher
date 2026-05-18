@@ -178,3 +178,11 @@ The service MUST vendor the telemetry contract schema into `contracts/vitals/` a
 1. Should multi-patient simulation (multiple concurrent patient streams) be supported in v3.x?
 2. Should the `sepsis_onset` scenario support configurable onset duration (e.g., 30 min vs 2 hr trajectories)?
 3. Should the publisher emit to a secondary `medtech/vitals/history` topic for time-series consumers?
+
+## Evidence of Learning
+
+To ensure clinical realism and outcome reliability, the following evidence packages have been added:
+- [Clinical Realism Validation Protocol](../validation/CLINICAL_REALISM_PROTOCOL.md)
+- [Validation Results Template](../validation/REALISM_RESULTS_TEMPLATE.md)
+- [Outcome Metrics](../product-evidence/OUTCOME-METRICS.md)
+- [Discovery Log](../product-evidence/DISCOVERY-LOG.md)

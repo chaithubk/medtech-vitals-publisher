@@ -64,7 +64,11 @@ def invoke_ollama_via_api() -> tuple[bool, str, str]:
                     "prompt": prompt,
                     "stream": False,
                     "format": "json",
-                    "options": {"temperature": 0},
+                    "options": {
+                        "temperature": 0,
+                        "num_ctx": 4096,
+                        "num_predict": 2048,
+                    },
                 }
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},

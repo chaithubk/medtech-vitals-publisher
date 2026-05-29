@@ -51,6 +51,96 @@ function extractJsonObject(text) {
   return text.slice(start, end + 1);
 }
 
+function extractBalancedJsonObjects(text) {
+  const objects = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{") {
+      if (depth === 0) {
+        start = i;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if (ch === "}") {
+      if (depth > 0) {
+        depth -= 1;
+        if (depth === 0 && start !== -1) {
+          objects.push(text.slice(start, i + 1));
+          start = -1;
+        }
+      }
+    }
+  }
+
+  return objects;
+}
+
+function parseModelJson(text) {
+  const candidates = [];
+  const fencedRegex = /```(?:json)?\s*([\s\S]*?)```/gi;
+
+  for (const match of text.matchAll(fencedRegex)) {
+    if (match[1] && match[1].trim()) {
+      candidates.push(match[1].trim());
+    }
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    candidates.push(trimmed);
+  }
+
+  candidates.push(...extractBalancedJsonObjects(text));
+
+  if (candidates.length === 0) {
+    candidates.push(extractJsonObject(text));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && parsed.UPDATED_FILES && typeof parsed.UPDATED_FILES === "object") {
+        return parsed;
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  throw new Error("No valid JSON candidate matched expected schema");
+}
+
+function outputPreview(text, maxLen = 1200) {
+  if (!text) {
+    return "<empty>";
+  }
+  return text.slice(0, maxLen).replace(/\s+/g, " ").trim();
+}
+
 function isAllowedDocPath(filePath) {
   const normalized = path.posix.normalize(filePath.replace(/\\/g, "/"));
   if (path.isAbsolute(normalized) || normalized.startsWith("../")) {
@@ -105,6 +195,7 @@ RULES:
 - Preserve useful content
 - Be precise
 - Do NOT hallucinate
+- Respond with JSON only (no markdown code fences, no commentary)
 
 OUTPUT STRICT JSON:
 {
@@ -140,9 +231,9 @@ try {
 let parsed;
 
 try {
-  parsed = JSON.parse(extractJsonObject(result));
+  parsed = parseModelJson(result);
 } catch {
-  exitWithPolicy("Failed to parse output.");
+  exitWithPolicy(`Failed to parse output. Preview: ${outputPreview(result)}`);
 }
 
 if (!parsed || typeof parsed !== "object" || !parsed.UPDATED_FILES || typeof parsed.UPDATED_FILES !== "object") {

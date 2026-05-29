@@ -1,0 +1,64 @@
+name: PR Review Bot (Ollama)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-review-bot-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repo
+        # Pin reviewed SHAs and update only via approved maintenance PRs.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        # Pin reviewed SHAs and update only via approved maintenance PRs.
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama daemon
+        run: |
+          nohup ollama serve >/tmp/ollama.log 2>&1 &
+          for i in {1..30}; do
+            if ollama list >/dev/null 2>&1; then
+              echo "Ollama is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Ollama failed to start"
+          cat /tmp/ollama.log || true
+          exit 1
+
+      - name: Pull model
+        run: ollama pull llama3.2:3b
+
+      - name: Run PR review bot
+        run: python scripts/pr_review_bot.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OLLAMA_MODEL: llama3.2:3b
+          OLLAMA_HOST: http://127.0.0.1:11434
+          OLLAMA_NUM_PREDICT: "256"

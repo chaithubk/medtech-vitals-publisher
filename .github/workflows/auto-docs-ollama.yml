@@ -1,14 +1,6 @@
 name: Auto Docs Update (Ollama)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - src/**
-      - scripts/**
-      - contracts/**
-      - data/**
-      - .github/workflows/**
   workflow_dispatch:
 
 permissions:
@@ -23,7 +15,7 @@ jobs:
   update-docs:
     if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repo
@@ -60,12 +52,12 @@ jobs:
       - name: Pull model
         run: ollama pull "${OLLAMA_MODEL}"
         env:
-          OLLAMA_MODEL: llama3
+          OLLAMA_MODEL: llama3.2:1b
 
       - name: Run doc updater
         run: python scripts/ollama_docs.py
         env:
-          OLLAMA_MODEL: llama3
+          OLLAMA_MODEL: llama3.2:1b
           OLLAMA_DIFF_COMMITS: "3"
           DOCS_STRICT_MODE: "true"
           DOCS_MIN_CONFIDENCE: "0.70"

@@ -19,8 +19,6 @@ concurrency:
 
 jobs:
   review-docs:
-    # Optional: protect this environment in repo settings with required reviewers.
-    environment: docs-automation
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

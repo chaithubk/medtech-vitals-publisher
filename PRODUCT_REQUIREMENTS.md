@@ -1,4 +1,13 @@
-# Product Requirements: Vitals Publisher v2.1
+# Product Requirements: Vitals Publisher v2.1.1
+
+**Document Class:** Aspirational (product requirements and target behavior)
+
+**Service Baseline:** 2.1.1
+
+**Last Updated:** 2026-05-29
+
+**Normative Source Note:** Runtime behavior and compatibility guarantees are
+normatively defined by `README.md`, `src/`, `tests/`, and `contracts/vitals/`.
 
 ## Problem
 

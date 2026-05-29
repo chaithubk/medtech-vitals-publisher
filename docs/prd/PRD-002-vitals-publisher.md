@@ -7,10 +7,21 @@
 | **Repo** | `chaithubk/medtech-vitals-publisher` |
 | **Author** | MedTech R&D |
 | **Status** | Active |
-| **Service Version** | 2.2.2 |
-| **Last Updated** | 2026-05-13 |
+| **Document Class** | Aspirational (product intent and roadmap) |
+| **Service Version** | 2.1.1 |
+| **Last Updated** | 2026-05-29 |
 
-> **Zero PHI Declaration:** All vitals published by this service are fully synthetic. Values are generated deterministically from Synthea-modeled clinical profiles. No real patient data, PHI, or PII is used, transmitted, or stored. This service is an educational R&D prototype only.
+> **Synthetic Data and Privacy Declaration:** No real patient PHI/PII is used,
+> transmitted, or stored. Synthetic records may contain person-like demographic
+> fields generated for realism. This service is an educational R&D prototype only.
+
+> **Normative Source Note:** This PRD is aspirational. Runtime behavior is
+> normatively defined by implementation and contract artifacts in `README.md`,
+> `src/`, `tests/`, and `contracts/vitals/`.
+
+> **Versioning Policy:** Service versioning is independent from telemetry
+> contract schema versioning. Service releases track application changes; schema
+> versions track payload compatibility.
 
 ---
 
@@ -27,7 +38,7 @@ The **MedTech Vitals Publisher** fills this gap. It is a deterministic, scenario
 | Scenario | Description | Clinical Purpose |
 |---|---|---|
 | `healthy` | Normal adult vitals within reference ranges | Establishes baseline; verifies no false-positive alarms |
-| `sepsis_onset` | Gradually deteriorating vitals: rising HR, falling O2, low-grade fever | Tests model sensitivity to early sepsis trajectory |
+| `sepsis` | Multi-stage deterioration (`pre_sepsis` → `sepsis_onset` → `sepsis` → `septic_shock`) | Tests sensitivity and progression handling across sepsis stages |
 | `critical` | Severely abnormal vitals triggering SOFA-equivalent threshold crossing | Tests model specificity at high clinical acuity |
 
 ---
@@ -74,7 +85,7 @@ The **MedTech Vitals Publisher** fills this gap. It is a deterministic, scenario
 
 ### In Scope (v2.x)
 
-- Deterministic vitals generation for `healthy`, `sepsis_onset`, `critical` scenarios
+- Deterministic vitals generation for `healthy`, `sepsis`, `critical` scenarios
 - MQTT publish on topic `medtech/vitals/latest`
 - Integrated Mosquitto broker (port 1883)
 - Configurable publish interval via `PUBLISH_INTERVAL_S` environment variable
@@ -98,7 +109,7 @@ The **MedTech Vitals Publisher** fills this gap. It is a deterministic, scenario
 
 The publisher MUST produce clinically plausible vital-sign values for each scenario using fixed seed or deterministic progression:
 - `healthy`: HR 60–100, SpO₂ 96–100%, Temp 36.0–37.5°C, BP 110–130/70–85
-- `sepsis_onset`: HR escalating 90→120, SpO₂ declining 95→90%, Temp 38.0–39.0°C, BP trending down
+- `sepsis`: stage-driven deterioration including `sepsis_onset` as an internal progression stage
 - `critical`: HR > 130 or < 40, SpO₂ < 88%, Temp > 39.5°C or < 35°C
 
 ### FR-002: Schema-Compliant Payloads
@@ -106,20 +117,33 @@ The publisher MUST produce clinically plausible vital-sign values for each scena
 Every published payload MUST conform to the telemetry contract (`vitals.schema.json` v2.x):
 ```json
 {
-  "timestamp": "<ISO-8601>",
+  "version": "2.1.1",
+  "patient_id": "P001",
+  "scenario": "sepsis",
+  "scenario_stage": "sepsis_onset",
+  "timestamp": 1712973600000,
   "hr": <number>,
   "bp_sys": <number>,
   "bp_dia": <number>,
   "o2_sat": <number>,
   "temperature": <number>,
-  "quality": <number 0.0–1.0>,
+  "respiratory_rate": <number>,
+  "wbc": <number>,
+  "lactate": <number>,
+  "creatinine": <number>,
+  "altered_mentation": <boolean>,
+  "sirs_score": <integer>,
+  "qsofa_score": <integer>,
+  "sepsis_stage": "none|sirs|sepsis|septic_shock",
+  "sepsis_onset_ts": <integer|null>,
+  "quality": "good|degraded|poor",
   "source": "simulator"
 }
 ```
 
 ### FR-003: MQTT Broker Integration
 
-The service MUST start a Mosquitto broker on port 1883 and publish on `medtech/vitals/latest` using QoS 0 (at-most-once) for low-latency delivery.
+The service MUST start a Mosquitto broker on port 1883 and publish on `medtech/vitals/latest` using QoS 1 (at-least-once delivery).
 
 ### FR-004: Contract Vendoring
 
@@ -133,7 +157,7 @@ The service MUST vendor the telemetry contract schema into `contracts/vitals/` a
 |---|---|---|
 | NFR-001 | Publish interval MUST be configurable without code change | 12-factor app / IEC 62304 §5.5 |
 | NFR-002 | Container MUST pass a `HEALTHCHECK` within 15 seconds of start | Docker best practice; CI gate |
-| NFR-003 | Payload `quality` field MUST reflect signal fidelity (1.0 = perfect simulator signal) | IEC 60601-1-8 alarm reliability |
+| NFR-003 | Payload `quality` field MUST reflect signal fidelity using categorical values (`good`, `degraded`, `poor`) | IEC 60601-1-8 alarm reliability |
 | NFR-004 | All scenario transitions MUST be reproducible from the same environment | ISO 14971 §10 (test traceability) |
 | NFR-005 | Image MUST be < 500 MB to support edge-constrained deployment testing | Resource constraint |
 
@@ -145,7 +169,7 @@ The service MUST vendor the telemetry contract schema into `contracts/vitals/` a
 |---|---|
 | **IEC 60601-1-8:2006+AMD1:2012** | Vitals publisher provides the physiological inputs that drive alarm conditions. Scenario fidelity directly determines the validity of alarm system testing. The `quality` field is used by consumers to assess alarm source reliability. |
 | **HL7 v2.x ORU^R01** | `hr`, `o2_sat`, `bp_sys`, `bp_dia`, `temperature` field naming and units are aligned with HL7 OBX segment conventions to enable downstream interoperability without transformation. |
-| **ISO 14971:2019 §7** | The three scenarios (healthy, sepsis_onset, critical) constitute hazard-based test inputs. Each scenario maps to a risk item in the program hazard analysis: false negative (missed sepsis), false positive (nuisance alarm), and catastrophic presentation. |
+| **ISO 14971:2019 §7** | The three scenarios (healthy, sepsis, critical) constitute hazard-based test inputs. Each scenario maps to a risk item in the program hazard analysis: false negative (missed sepsis), false positive (nuisance alarm), and catastrophic presentation. |
 | **IEC 62304:2015 §5.5** | Configurable scenario selection via environment variable constitutes a testable and traceable software unit requirement. |
 
 ---
@@ -176,7 +200,7 @@ The service MUST vendor the telemetry contract schema into `contracts/vitals/` a
 ## 11. Open Questions
 
 1. Should multi-patient simulation (multiple concurrent patient streams) be supported in v3.x?
-2. Should the `sepsis_onset` scenario support configurable onset duration (e.g., 30 min vs 2 hr trajectories)?
+2. Should the sepsis progression path support configurable onset-stage duration (e.g., 30 min vs 2 hr trajectories)?
 3. Should the publisher emit to a secondary `medtech/vitals/history` topic for time-series consumers?
 
 ## Evidence of Learning

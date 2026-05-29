@@ -2,17 +2,47 @@
 
 Synthetic patient vitals generator for MedTech edge device platform.
 
+## Documentation Classification
+
+This repository intentionally keeps both implementation-facing and product-facing
+documentation. Each document is explicitly classified to reduce drift:
+
+- **Normative (must match code/tests/contracts):** `README.md`, `contracts/README.md`,
+  `contracts/vitals/vitals.schema.json`, `contracts/vitals/contract-pin.json`
+- **Aspirational (planning/learning, may describe future intent):**
+  `PRODUCT_REQUIREMENTS.md`, `docs/prd/PRD-002-vitals-publisher.md`,
+  `docs/product-learning.md`, `docs/product-evidence/*`, `docs/validation/*`
+
+If normative and aspirational documents disagree, treat the normative set as the
+runtime source of truth and update aspirational docs accordingly.
+
+## Versioning Policy
+
+Service versioning is intentionally independent from telemetry contract schema
+versioning:
+
+- Service release/version tracks application behavior and operational changes.
+- Contract schema version tracks payload compatibility in the telemetry contract.
+
+The payload `version` field is derived from pinned contract metadata, while service
+release tags are managed independently.
+
+## Synthetic Data and Privacy Statement
+
+No real patient PHI/PII is used, transmitted, or stored by this service. Synthetic
+records may contain person-like demographic fields generated for realism.
+
 ## Overview
 
 Generates realistic physiological vital signs and publishes them to an MQTT
-broker every 10 seconds (configurable).  Three high-level clinical scenarios
+broker on a configurable interval (default: 1 second). Three high-level clinical scenarios
 are supported: `healthy`, `sepsis`, and `critical`.
 
 **v2 highlights:**
 - Multi-stage sepsis progression engine (`pre_sepsis → sepsis_onset → sepsis → septic_shock`).
 - Synthea-based synthetic patient data bridge (optional).
 - v2 MQTT payload with `respiratory_rate`, SIRS/qSOFA scores, sepsis stage
-  metadata, and dynamically-versioned `version` field (currently `2.1.0`).
+  metadata, and a dynamically-versioned `version` field derived from pinned contract metadata.
 - Deterministic replay — same `--seed` always produces the same sequence.
 
 ## Tech Stack
@@ -223,7 +253,7 @@ python -m src --scenario sepsis --synthea-path data/synthea/csv --patient-id <uu
 | `SYNTHEA_DATA_PATH`     | *(empty)*                                            | Path to Synthea `output/csv` directory                    |
 | `SCENARIO_STAGE`        | *(empty)*                                            | Starting stage within scenario                            |
 | `SEED`                  | `42`                                                 | RNG seed for deterministic replay                         |
-| `PUBLISH_INTERVAL_S`    | `10`                                                 | Seconds between published readings                        |
+| `PUBLISH_INTERVAL_S`    | `1`                                                  | Seconds between published readings                        |
 | `LOGLEVEL`              | `INFO`                                               | Logging verbosity                                         |
 | `MEDTECH_VITALS_SCHEMA` | `/usr/share/medtech/contracts/vitals/vitals.schema.json` | Runtime schema path (overrides device rootfs default) |
 
@@ -308,7 +338,7 @@ All messages are published to `medtech/vitals/latest` as JSON.
 
 ```json
 {
-  "version": "2.0",
+  "version": "2.1.1",
   "patient_id": "P001",
   "scenario": "sepsis",
   "scenario_stage": "sepsis_onset",
@@ -321,6 +351,8 @@ All messages are published to `medtech/vitals/latest` as JSON.
   "respiratory_rate": 23.4,
   "wbc": 15.2,
   "lactate": 2.7,
+  "creatinine": 1.6,
+  "altered_mentation": false,
   "sirs_score": 3,
   "qsofa_score": 2,
   "sepsis_stage": "septic_shock",
@@ -334,7 +366,7 @@ All messages are published to `medtech/vitals/latest` as JSON.
 
 | Field             | Type        | Description                                                     |
 |-------------------|-------------|-----------------------------------------------------------------|
-| `version`         | `string`    | Schema version — always `"2.0"` for this release               |
+| `version`         | `string`    | Contract schema version in SemVer format, sourced from the pinned contract metadata |
 | `patient_id`      | `string`    | Patient identifier                                              |
 | `scenario`        | `string`    | High-level scenario: `healthy`, `sepsis`, `critical`            |
 | `scenario_stage`  | `string`    | Active progression stage (see stages below)                     |
@@ -347,6 +379,8 @@ All messages are published to `medtech/vitals/latest` as JSON.
 | `respiratory_rate`| `float`     | Respiratory rate (breaths/min)                                  |
 | `wbc`             | `float`     | White blood cell count (x10^3/uL) — simulated/estimated         |
 | `lactate`         | `float`     | Serum lactate (mmol/L) — simulated/estimated                    |
+| `creatinine`      | `float`     | Serum creatinine (mg/dL) — organ dysfunction marker             |
+| `altered_mentation` | `bool`    | True when GCS < 15 (qSOFA mental-status criterion)              |
 | `sirs_score`      | `integer`   | SIRS criteria met (0-4)                                         |
 | `qsofa_score`     | `integer`   | qSOFA score (0-3)                                               |
 | `sepsis_stage`    | `string`    | Classified stage: `none`, `sirs`, `sepsis`, `septic_shock`      |
@@ -448,7 +482,7 @@ by the built-in progression engine as a fallback.
 
 ```
 src/
-├── __init__.py          # Package init, version (2.0.0)
+├── __init__.py          # Package metadata (name/version)
 ├── __main__.py          # python -m src entry point
 ├── config.py            # All env-var-driven configuration
 ├── schema.py            # v2 payload dataclass + SIRS/qSOFA helpers
@@ -500,4 +534,4 @@ netstat -lntp | grep -E '1883|9001'
 
 ## Architecture Decision Records (ADR)
 
-- [ADR 0001: Contract Management Migration](docs/adr/0001-contract-management-migration.md)
+- [ADR-001: Contract Management Migration](docs/adr/ADR-001-contract-management-migration.md)

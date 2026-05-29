@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import urllib.error
 import urllib.request
 
@@ -52,36 +53,77 @@ DOCS:
 model = os.getenv("OLLAMA_MODEL", "llama3")
 ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 
-try:
-    request = urllib.request.Request(
-        url=f"{ollama_host.rstrip('/')}/api/generate",
-        data=json.dumps(
-            {
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0},
-            }
-        ).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=300) as response:
-        body = response.read().decode("utf-8")
-except (OSError, urllib.error.URLError, TimeoutError):
-    exit_with_policy("Ollama invocation failed.")
 
-try:
-    envelope = json.loads(body)
-except json.JSONDecodeError:
-    preview = output_preview(body)
-    exit_with_policy(f"Ollama invocation failed. Preview: {preview}")
+def invoke_ollama_via_api() -> tuple[bool, str, str]:
+    try:
+        request = urllib.request.Request(
+            url=f"{ollama_host.rstrip('/')}/api/generate",
+            data=json.dumps(
+                {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0},
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=300) as response:
+            body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read().decode("utf-8")
+        except Exception:
+            detail = str(exc)
+        return False, "", f"HTTPError: {output_preview(detail)}"
+    except (OSError, urllib.error.URLError, TimeoutError) as exc:
+        return False, "", f"{type(exc).__name__}: {output_preview(str(exc))}"
 
-result_text = envelope.get("response", "")
-if not isinstance(result_text, str) or not result_text.strip():
-    preview = output_preview(json.dumps(envelope))
-    exit_with_policy(f"Ollama invocation failed. Preview: {preview}")
+    try:
+        envelope = json.loads(body)
+    except json.JSONDecodeError:
+        return False, "", f"Invalid JSON envelope: {output_preview(body)}"
+
+    result_text = envelope.get("response", "")
+    if not isinstance(result_text, str) or not result_text.strip():
+        preview = output_preview(json.dumps(envelope))
+        return False, "", f"Missing response field: {preview}"
+
+    return True, result_text, ""
+
+
+def invoke_ollama_via_cli() -> tuple[bool, str, str]:
+    try:
+        completed = subprocess.run(
+            ["ollama", "run", model],
+            input=prompt,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        return False, "", f"{type(exc).__name__}: {output_preview(str(exc))}"
+
+    if completed.returncode != 0:
+        preview = output_preview(completed.stderr or completed.stdout)
+        return False, "", f"exit={completed.returncode}: {preview}"
+
+    if not completed.stdout.strip():
+        return False, "", "CLI returned empty output"
+
+    return True, completed.stdout, ""
+
+
+ok, result_text, api_error = invoke_ollama_via_api()
+if not ok:
+    print(f"Ollama API path failed, trying CLI fallback: {api_error}")
+    ok, result_text, cli_error = invoke_ollama_via_cli()
+    if not ok:
+        exit_with_policy(
+            f"Ollama invocation failed. API: {api_error} | CLI: {cli_error}"
+        )
 
 try:
     parsed = parse_model_json(result_text)

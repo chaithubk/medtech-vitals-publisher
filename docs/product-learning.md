@@ -1,5 +1,14 @@
 # Product Learning: Why We Are Doing This
 
+**Document Class:** Aspirational (learning rationale and continuous-improvement context)
+
+**Service Baseline:** 2.1.1
+
+**Last Updated:** 2026-05-29
+
+**Normative Source Note:** Runtime behavior and compatibility guarantees are
+normatively defined by `README.md`, `src/`, `tests/`, and `contracts/vitals/`.
+
 ## Context
 The vitals publisher is a critical component in providing deterministic synthetic vitals and a broker for downstream services. However, gaps in clinical realism validation, outcome reporting, and discovery traceability have been identified. Addressing these gaps is essential to ensure the product's reliability, clinical relevance, and stakeholder trust.
 
